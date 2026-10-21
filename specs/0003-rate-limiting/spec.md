@@ -21,11 +21,11 @@ Rate limiting is the third feature in the backlog and depends on `0001`. The
 demo needs a Cloudflare-proxied hostname and an origin that refuses direct
 traffic, so requests cannot bypass the edge.
 
-The presenter will simulate `POST /api/login` traffic at 52 requests per
-second. Cloudflare will apply a threshold of 10 requests per minute to that
-endpoint, with Managed Challenge followed by Block as the intended mitigation.
-The resulting challenged and blocked requests should be observable during the
-demo.
+The presenter will simulate `POST /api/login` traffic in a test range of 50 to
+150 requests per second. Cloudflare will apply a threshold of 10 requests per
+minute to that endpoint, with Managed Challenge followed by Block as the
+intended mitigation. The resulting challenged and blocked requests should be
+observable during the demo.
 
 ## Goals
 
@@ -52,7 +52,7 @@ demo.
 - **When** the presenter sends simulated `POST /api/login` traffic
 - **Then** the traffic reaches the origin, establishing the baseline
 - **And when** the presenter enables rate limiting and repeats the simulation
-  at 52 requests per second
+  across the test range of 50 to 150 requests per second
 - **Then** requests above 10 per minute are challenged and blocked, and the
   mitigation is visible in Cloudflare
 
@@ -69,7 +69,7 @@ demo.
 | ---- | ----------- | -------- |
 | FR-1 | The rate limit matches requests to `POST /api/login`. | S-1, S-2 |
 | FR-2 | The limit is 10 requests per minute; requests above the limit are mitigated. | S-1, S-2 |
-| FR-3 | The demo can generate simulated traffic at 52 requests per second. | S-1 |
+| FR-3 | The demo can generate simulated traffic in a test range of 50 to 150 requests per second. | S-1 |
 | FR-4 | Rate limiting can be enabled and disabled independently of the other edge features. | S-1 |
 | FR-5 | The mitigation uses Managed Challenge followed by Block for excessive requests. | S-1 |
 | FR-6 | Requests within the limit are not challenged or blocked by this rate limit. | S-2 |
@@ -79,12 +79,12 @@ demo.
 
 | ID    | Requirement | Target |
 | ----- | ----------- | ------ |
-| NFR-1 | Traffic used to demonstrate the feature is simulated and repeatable. | 52 requests/second against the demo endpoint |
+| NFR-1 | Traffic used to demonstrate the feature is simulated and repeatable. | Test range of 50 to 150 requests/second against the demo endpoint |
 | NFR-2 | The presenter can switch the feature on or off during the demo without rebuilding the environment. | No environment rebuild |
 
 ## Acceptance criteria
 
-- [ ] The demo sends simulated `POST /api/login` traffic at 52 requests per second.
+- [ ] The demo sends simulated `POST /api/login` traffic in a test range of 50 to 150 requests per second.
 - [ ] The rate limit is configured for 10 requests per minute on `POST /api/login`.
 - [ ] Requests above the limit receive Managed Challenge and are then blocked.
 - [ ] Requests within the limit are not challenged or blocked by this rate limit.
@@ -95,4 +95,3 @@ demo.
 
 | Question | Owner | Resolution |
 | -------- | ----- | ---------- |
-
