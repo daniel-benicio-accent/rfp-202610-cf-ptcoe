@@ -1,0 +1,37 @@
+variable "zone_id" {
+  description = "Cloudflare zone ID for the demo domain."
+  type        = string
+}
+
+variable "subdomain" {
+  description = "Record name within the zone, e.g. \"demo\"."
+  type        = string
+}
+
+variable "hostname" {
+  description = "Full public hostname, e.g. \"demo.example.com\". Must match subdomain + zone."
+  type        = string
+}
+
+variable "origin_hostname" {
+  description = <<-EOT
+    Cloud Run hostname without the scheme, e.g. "myenv-abc123-ew.a.run.app".
+    Derive it from the gcp module's service_url output.
+  EOT
+  type        = string
+}
+
+variable "edge_secret" {
+  description = <<-EOT
+    Shared secret injected towards the origin (spec 0001 FR-7). Supplied
+    through TF_VAR_edge_secret; never written to a tracked file.
+  EOT
+  type        = string
+  sensitive   = true
+}
+
+variable "edge_secret_header" {
+  description = "Header name carrying the edge secret. Must match what the app checks."
+  type        = string
+  default     = "X-Edge-Auth"
+}

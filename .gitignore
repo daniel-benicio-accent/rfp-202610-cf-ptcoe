@@ -29,8 +29,10 @@ override.tf.json
 # Include override files you do wish to add to version control using negated pattern
 # !example_override.tf
 
-# Include tfplan files to ignore the plan output of command: terraform plan -out=tfplan
-# example: *tfplan*
+# Plan output of `terraform/tofu plan -out=tfplan`. Binary, and it embeds the
+# resolved values of every variable — including anything sensitive.
+tfplan
+*tfplan*
 
 # Ignore CLI configuration files
 .terraformrc
@@ -42,3 +44,134 @@ terraform.rc
 # Optional: ignore plan files saved before destroying Terraform configuration
 # Uncomment the line below if you want to ignore planout files.
 # planout
+
+
+# ---------------------------------------------------------------------------
+# Demo instances
+#
+# bootstrap-terraform.sh renders one self-contained demo per run into
+# demos/<name>/. The folder itself is NOT ignored: commit one when you want a
+# record of exactly what a given demo was, leave it alone otherwise.
+#
+# What is never committed, whatever you decide about the folder:
+#   - local state, which is machine-specific and can contain resource detail
+#   - .envconfig, which carries the operator's own account
+#
+# terraform.tfvars IS committable inside a demo, because the parameters are the
+# interesting part of the record and hold no credentials. The edge secret and
+# the Cloudflare token come from the environment, never from a file.
+#
+# Note that a committed demo folder is a record, not a working handle: without
+# the state file nobody else can apply or destroy it.
+# ---------------------------------------------------------------------------
+demos/**/.terraform/
+demos/**/*.tfstate
+demos/**/*.tfstate.*
+demos/**/tfplan
+demos/**/.envconfig
+!demos/**/terraform.tfvars
+
+# Older naming, kept so existing working copies stay clean.
+envs/
+.labconfig
+.envconfig
+
+# Generated notification emails (contain internal distribution lists)
+*-created.eml
+lab-created.eml
+env-created.eml
+
+# Cloudflare credentials. The API token is read from the environment
+# (CLOUDFLARE_API_TOKEN), never from a file in the tree.
+.cloudflare
+cloudflare.auto.tfvars
+cloudflare.auto.tfvars.json
+
+# ---------------------------------------------------------------------------
+# AI coding assistants: local config, agent instructions, skills, caches, logs
+#
+# Convention: any specification whose "AI usage" field is not "None" must have
+# its tooling and generated artifacts added below before the spec is approved.
+# See docs/conventions.md.
+# ---------------------------------------------------------------------------
+
+# Claude / Claude Code
+.claude/
+.claude.json
+.claude.local.json
+CLAUDE.md
+CLAUDE.local.md
+
+# OpenAI Codex / generic agent instruction files
+.codex/
+AGENTS.md
+AGENT.md
+
+# Model Context Protocol server definitions (often hold tokens/paths)
+.mcp.json
+
+# Cursor
+.cursor/
+.cursorrules
+.cursorignore
+.cursorindexingignore
+
+# GitHub Copilot
+.copilot/
+.github/copilot-instructions.md
+.github/instructions/
+.github/prompts/
+.github/chatmodes/
+
+# Google Gemini CLI / Jules
+.gemini/
+GEMINI.md
+
+# Windsurf / Codeium
+.windsurf/
+.windsurfrules
+.codeium/
+
+# Cline / Roo Code / Kilo Code
+.cline/
+.clinerules
+.clinerules/
+.roo/
+.roomodes
+.kilocode/
+
+# Aider
+.aider*
+.aider.chat.history.md
+.aider.input.history
+.aider.tags.cache.v*/
+
+# Continue.dev
+.continue/
+
+# Amazon Q Developer / Kiro
+.amazonq/
+.kiro/
+
+# JetBrains Junie
+.junie/
+
+# Sourcegraph Cody
+.cody/
+.sourcegraph/
+
+# Block Goose
+.goose/
+
+# OpenHands / Devin / Tabnine / Zed AI
+.openhands/
+.devin/
+.tabnine/
+.zed/
+
+# Generic agent scratch dirs
+.ai/
+.agent/
+.agents/
+.prompts/
+MyCapAct/*

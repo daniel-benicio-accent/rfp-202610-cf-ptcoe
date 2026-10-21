@@ -1,0 +1,43 @@
+variable "project_id" {
+  description = "The GCP project ID where the origin is deployed."
+  type        = string
+}
+
+variable "region" {
+  description = "The GCP region for Artifact Registry, Cloud Run and Firestore."
+  type        = string
+  default     = "europe-west1"
+}
+
+variable "app_name" {
+  description = "Environment / application name used for resource naming."
+  type        = string
+}
+
+variable "audit_bucket" {
+  description = <<-EOT
+    Cloud Storage bucket for the audit log sink. Created OUTSIDE Terraform on
+    purpose, so it survives `tofu destroy` and keeps the evidence trail for
+    every environment that ever existed. See spec 0001 FR-12.
+  EOT
+  type        = string
+}
+
+variable "submitter" {
+  description = <<-EOT
+    IAM member running `gcloud builds submit`, e.g. "user:someone@example.com".
+    Needs resource-scoped roles on the app service account — see the comment on
+    google_service_account_iam_member in main.tf.
+  EOT
+  type        = string
+}
+
+variable "edge_secret" {
+  description = <<-EOT
+    Shared secret that Cloudflare injects as a request header and the origin
+    checks, so the edge cannot be bypassed (spec 0001 FR-7). Supplied through
+    TF_VAR_edge_secret; never written to a tracked file.
+  EOT
+  type        = string
+  sensitive   = true
+}
