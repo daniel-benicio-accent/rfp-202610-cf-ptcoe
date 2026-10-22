@@ -40,4 +40,22 @@ variable "edge_secret" {
   EOT
   type        = string
   sensitive   = true
+
+  validation {
+    # The origin falls back to accepting direct traffic when EDGE_SECRET is
+    # empty, so an empty or trivial value would silently defeat FR-7. Catch it
+    # at plan time instead of discovering it mid-demo.
+    condition     = length(var.edge_secret) >= 16
+    error_message = "edge_secret must be at least 16 characters. Generate one with: openssl rand -hex 24"
+  }
+}
+
+variable "edge_secret_header" {
+  description = <<-EOT
+    Header carrying the edge secret. Must match the zone module's value of the
+    same name, otherwise Cloudflare sets one header and the origin checks a
+    different one — which fails closed, so every request 403s.
+  EOT
+  type        = string
+  default     = "X-Edge-Auth"
 }

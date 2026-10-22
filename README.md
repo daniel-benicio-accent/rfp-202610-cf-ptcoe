@@ -88,6 +88,7 @@ Cloudflare?** Nothing downstream can start without a zone.
 | [docs/spec-workflow.md](docs/spec-workflow.md) | The spec → plan → tasks → code lifecycle and status values. |
 | [docs/conventions.md](docs/conventions.md) | Working agreements: language, naming, documentation, AI tooling, secrets. |
 | [docs/prerequisites.md](docs/prerequisites.md) | Workstation setup: WSL, OpenTofu, `gcloud`, and the environment variables. |
+| [docs/created-objects.md](docs/created-objects.md) | Checklist of every object a demo creates, for walking the consoles by hand. |
 | [docs/inherited-from-capact.md](docs/inherited-from-capact.md) | What the CapAct MVP contributed to this work, and why. History, not a dependency. |
 
 This file and [specs/README.md](specs/README.md) are the only two READMEs in the
@@ -234,14 +235,34 @@ curl -sI https://<cloud-run-url>                 # must be refused (spec 0001 FR
 Two things that will bite you, both documented in the code at the point they
 matter:
 
-- **`tofu validate` in `gcp/` fails with four `filesha256` errors** until
-  `src/app/` exists and the wizard can copy it into the demo. The module hashes
-  the app sources to decide when to rebuild the image. That is `0001` task 4,
-  not a bug.
+- **`tofu validate` in `gcp/` fails with four `filesha256` errors** if the
+  demo has no `app/` folder. The module hashes the application sources to decide
+  when to rebuild the image, so each demo carries its own copy. Re-run the
+  wizard with the same `--name` to copy `src/app/` in; it skips everything that
+  already exists.
 - **Cloud Run routes by Host header.** A proxied CNAME forwards the visitor's
   Host, matches no service, and the origin answers 404 — looking exactly like
   broken DNS. The zone module's origin rule rewrites Host to the `*.run.app`
   name. Do not remove it.
+
+### Verify a demo
+
+Terraform reports what it managed to create. It says nothing about what it
+never tried, what was changed by hand, or whether the thing actually behaves.
+This asks the cloud and the running service directly:
+
+```bash
+./scripts/project-verify.sh <name>
+```
+
+It checks the enabled APIs, the service account, registry, Firestore, Cloud Run
+service, audit bucket and log sink; then the live behaviour — a direct request
+is refused with 403 (FR-7), `/health` answers without the header, the app is
+served when the header is present, `/api/stats` reports arrivals (FR-9); then
+the edge, if the zone is applied. Read-only, and it exits non-zero on any
+failure so it can gate a rehearsal.
+
+Each failure comes with the command that fixes it.
 
 ### Destroy a demo
 
@@ -272,9 +293,10 @@ entries are templates; each demo gets its own rendered copy.
 | [terraform/_templates/gcp/](src/terraform/_templates/gcp/) | [0001](specs/0001-platform-foundation/spec.md) | Origin: Cloud Run, Firestore, Artifact Registry, Cloud Build, audit log sink. | Written, schema-validated against the google provider. |
 | [terraform/_templates/zone/](src/terraform/_templates/zone/) | [0001](specs/0001-platform-foundation/spec.md) | Proxied record, Host header rewrite, edge secret injection. | Written, schema-validated against cloudflare 5.28.1. TLS mode still a TODO. |
 | [terraform/_templates/feature/](src/terraform/_templates/feature/) | [0002](specs/0002-bot-management/spec.md) onward | Generic edge-feature module behind an `enable_<feature>` toggle. | Skeleton. Phase and match expression are per-feature TODOs. |
-| [scripts/bootstrap-terraform.sh](scripts/bootstrap-terraform.sh) | [0001](specs/0001-platform-foundation/spec.md) | Wizard that renders a complete demo into `demos/<name>/`. | Working. No GCP pre-flight yet — see `0001` task 6. |
+| [scripts/bootstrap-terraform.sh](scripts/bootstrap-terraform.sh) | [0001](specs/0001-platform-foundation/spec.md) | Wizard that renders a complete demo into `demos/<name>/`, and creates the audit bucket. | Working. IAM pre-flight still open — see `0001` task 6b. |
+| [scripts/project-verify.sh](scripts/project-verify.sh) | [0001](specs/0001-platform-foundation/spec.md) | Read-only check of a demo's resources and live behaviour. | Working, exercised against a real deployment. |
 | [scripts/project-nuke.sh](scripts/project-nuke.sh) | [0001](specs/0001-platform-foundation/spec.md) | Teardown: inventory, audit upload, ordered destroy. | Working. Ordering and skip logic tested; cloud calls not yet exercised. |
-| `src/app/` | [0001](specs/0001-platform-foundation/spec.md) | Flask whiteboard: browser UI plus REST API, edge-secret check, request counter. | Not started. |
+| [src/app/](src/app/) | [0001](specs/0001-platform-foundation/spec.md) | Flask whiteboard: browser UI plus REST API, edge-secret check (FR-7), arrival counter (FR-9). | Deployed and verified on Cloud Run: direct requests get 403, header requests get 200. |
 | `src/load-generator/` | [0001](specs/0001-platform-foundation/spec.md) | Vegeta-based traffic and bot simulator with Prometheus metrics. | Not started. |
 
 ## Conventions

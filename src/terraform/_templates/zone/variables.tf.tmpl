@@ -28,6 +28,14 @@ variable "edge_secret" {
   EOT
   type        = string
   sensitive   = true
+
+  validation {
+    # The origin falls back to accepting direct traffic when EDGE_SECRET is
+    # empty, so an empty or trivial value would silently defeat FR-7. Catch it
+    # at plan time instead of discovering it mid-demo.
+    condition     = length(var.edge_secret) >= 16
+    error_message = "edge_secret must be at least 16 characters. Generate one with: openssl rand -hex 24"
+  }
 }
 
 variable "edge_secret_header" {

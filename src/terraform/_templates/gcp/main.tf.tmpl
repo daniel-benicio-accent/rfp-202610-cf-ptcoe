@@ -121,9 +121,9 @@ resource "time_sleep" "wait_for_iam" {
 # actually changed, not on every apply. No local Docker needed.
 #
 # Consequence worth knowing before you debug it: `tofu validate` and `plan`
-# fail here with four filesha256 errors until src/app/ exists. That is spec
-# 0001 task 4, not a fault in this module. The Cloudflare modules validate on
-# their own.
+# fail here with four filesha256 errors if this demo has no app/ folder beside
+# terraform/. Re-run bootstrap-terraform.sh with the same --name to copy
+# src/app/ in. The Cloudflare modules validate on their own.
 locals {
   app_files_hash = substr(sha256(join("", [
     filesha256("${path.module}/../../app/main.py"),
@@ -183,6 +183,11 @@ resource "google_cloud_run_v2_service" "app" {
       env {
         name  = "EDGE_SECRET"
         value = var.edge_secret
+      }
+
+      env {
+        name  = "EDGE_SECRET_HEADER"
+        value = var.edge_secret_header
       }
 
       resources {

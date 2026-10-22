@@ -1,9 +1,11 @@
 # Local .terraform directories
 .terraform/
 
-# .tfstate files
+# .tfstate and lock files
 *.tfstate
 *.tfstate.*
+*.terraform.lock.hcl
+
 
 # Crash log files
 crash.log
@@ -175,3 +177,11 @@ GEMINI.md
 .agents/
 .prompts/
 MyCapAct/*
+
+# ---------------------------------------------------------------------------
+# Python (origin application under src/app)
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
