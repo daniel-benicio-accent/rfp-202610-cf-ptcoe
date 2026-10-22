@@ -1,0 +1,254 @@
+# =============================================================================
+# Origin infrastructure — spec 0001
+#
+#   Cloud Run (Flask) <--> Firestore (Native)
+#   Artifact Registry for images, built remotely by Cloud Build
+#   Cloud Storage + log sink for the audit trail
+#
+# Carried over from the CapAct MVP, which proved this layout. Two things in
+# here look like noise and are not: the time_sleep waits and the
+# resource-scoped service account bindings. Both exist because of real
+# failures. Read their comments before removing either.
+# =============================================================================
+
+locals {
+  required_apis = [
+    "run.googleapis.com",
+    "firestore.googleapis.com",
+    "artifactregistry.googleapis.com",
+    "cloudbuild.googleapis.com",
+    "storage.googleapis.com",
+    "logging.googleapis.com",
+    "iam.googleapis.com",
+    "iamcredentials.googleapis.com",
+  ]
+}
+
+resource "google_project_service" "apis" {
+  for_each = toset(local.required_apis)
+
+  project            = var.project_id
+  service            = each.value
+  disable_on_destroy = false
+}
+
+# Google provisions service agents asynchronously after API enablement — for
+# example service-<PROJECT_NUMBER>@gcp-sa-logging.iam.gserviceaccount.com.
+# Without this wait, the log sink writer IAM binding below fails with
+# "service account ... does not exist".
+resource "time_sleep" "wait_for_service_agents" {
+  depends_on      = [google_project_service.apis]
+  create_duration = "60s"
+}
+
+resource "google_artifact_registry_repository" "app" {
+  location      = var.region
+  repository_id = var.app_name
+  description   = "Docker repository for ${var.app_name} container images."
+  format        = "DOCKER"
+
+  depends_on = [time_sleep.wait_for_service_agents]
+}
+
+resource "google_firestore_database" "app" {
+  project         = var.project_id
+  name            = "(default)"
+  location_id     = var.region
+  type            = "FIRESTORE_NATIVE"
+  deletion_policy = "DELETE"
+
+  depends_on = [time_sleep.wait_for_service_agents]
+}
+
+# ── Service account used by both Cloud Run and Cloud Build ────────────────────
+resource "google_service_account" "app" {
+  account_id   = "${var.app_name}-sa"
+  display_name = "${var.app_name} Cloud Run and Build service account"
+}
+
+resource "google_project_iam_member" "firestore_user" {
+  project = var.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.app.email}"
+}
+
+locals {
+  build_sa_roles = [
+    "roles/cloudbuild.builds.builder",
+    "roles/artifactregistry.writer",
+    "roles/logging.logWriter",
+    "roles/storage.objectAdmin",
+  ]
+}
+
+resource "google_project_iam_member" "build_sa_roles" {
+  for_each = toset(local.build_sa_roles)
+  project  = var.project_id
+  role     = each.value
+  member   = "serviceAccount:${google_service_account.app.email}"
+}
+
+# Fixes "PERMISSION_DENIED: The caller does not have permission".
+#
+# When `gcloud builds submit --service-account=<APP_SA>` runs, the submitter
+# needs iam.serviceAccountUser AND iam.serviceAccountTokenCreator on THAT
+# SPECIFIC service account, resource-scoped. Project-level Owner is not
+# reliably honoured for these checks on a freshly created SA.
+resource "google_service_account_iam_member" "submitter_user" {
+  service_account_id = google_service_account.app.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = var.submitter
+}
+
+resource "google_service_account_iam_member" "submitter_token_creator" {
+  service_account_id = google_service_account.app.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = var.submitter
+}
+
+# Buffer for the bindings above to propagate before the build runs.
+resource "time_sleep" "wait_for_iam" {
+  depends_on = [
+    google_project_iam_member.build_sa_roles,
+    google_service_account_iam_member.submitter_user,
+    google_service_account_iam_member.submitter_token_creator,
+  ]
+  create_duration = "30s"
+}
+
+# ── Image build ──────────────────────────────────────────────────────────────
+# Hashing the app sources means Cloud Build only runs when the application
+# actually changed, not on every apply. No local Docker needed.
+#
+# Consequence worth knowing before you debug it: `tofu validate` and `plan`
+# fail here with four filesha256 errors if this demo has no app/ folder beside
+# terraform/. Re-run bootstrap-terraform.sh with the same --name to copy
+# src/app/ in. The Cloudflare modules validate on their own.
+locals {
+  app_files_hash = substr(sha256(join("", [
+    filesha256("${path.module}/../../app/main.py"),
+    filesha256("${path.module}/../../app/requirements.txt"),
+    filesha256("${path.module}/../../app/Dockerfile"),
+    filesha256("${path.module}/../../app/templates/whiteboard.html"),
+  ])), 0, 8)
+
+  image_url = "${var.region}-docker.pkg.dev/${var.project_id}/${var.app_name}/${var.app_name}:${local.app_files_hash}"
+}
+
+resource "null_resource" "build_image" {
+  triggers = {
+    app_hash = local.app_files_hash
+  }
+
+  provisioner "local-exec" {
+    working_dir = "${path.module}/../../app"
+    command     = "gcloud builds submit --project=${var.project_id} --tag=${local.image_url} --service-account=projects/${var.project_id}/serviceAccounts/${google_service_account.app.email} --default-buckets-behavior=REGIONAL_USER_OWNED_BUCKET --quiet"
+  }
+
+  depends_on = [
+    google_project_service.apis,
+    google_artifact_registry_repository.app,
+    time_sleep.wait_for_iam,
+  ]
+}
+
+# ── Cloud Run ────────────────────────────────────────────────────────────────
+resource "google_cloud_run_v2_service" "app" {
+  name                = var.app_name
+  location            = var.region
+  deletion_protection = false
+
+  # Stays open because Cloud Run cannot restrict by source IP. The edge-only
+  # guarantee comes from EDGE_SECRET below, which the application checks on
+  # every request (spec 0001 FR-7). This is demo-grade by decision: the
+  # production pattern is a load balancer with Cloud Armor allowlisting
+  # Cloudflare's published ranges.
+  ingress = "INGRESS_TRAFFIC_ALL"
+
+  template {
+    service_account = google_service_account.app.email
+
+    scaling {
+      min_instance_count = 0
+      max_instance_count = 2
+    }
+
+    containers {
+      image = local.image_url
+
+      ports {
+        container_port = 8080
+      }
+
+      env {
+        name  = "EDGE_SECRET"
+        value = var.edge_secret
+      }
+
+      env {
+        name  = "EDGE_SECRET_HEADER"
+        value = var.edge_secret_header
+      }
+
+      resources {
+        limits = {
+          cpu    = "1"
+          memory = "512Mi"
+        }
+      }
+
+      startup_probe {
+        http_get {
+          path = "/health"
+        }
+        initial_delay_seconds = 0
+        period_seconds        = 3
+        failure_threshold     = 3
+      }
+    }
+  }
+
+  traffic {
+    type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
+    percent = 100
+  }
+
+  depends_on = [
+    null_resource.build_image,
+    google_firestore_database.app,
+    google_project_iam_member.firestore_user,
+  ]
+}
+
+# Cloudflare must be able to reach the service; the app decides who gets in.
+resource "google_cloud_run_service_iam_binding" "public_access" {
+  location = google_cloud_run_v2_service.app.location
+  service  = google_cloud_run_v2_service.app.name
+  role     = "roles/run.invoker"
+  members  = ["allUsers"]
+}
+
+# ── Audit trail ──────────────────────────────────────────────────────────────
+# Empty filter: capture everything. The writer identity gets objectCreator
+# only, so it can append evidence but never read or delete it.
+resource "google_logging_project_sink" "audit" {
+  name                   = "${var.app_name}-audit-sink"
+  destination            = "storage.googleapis.com/${var.audit_bucket}"
+  unique_writer_identity = true
+  filter                 = ""
+
+  depends_on = [time_sleep.wait_for_service_agents]
+}
+
+resource "time_sleep" "wait_for_sink_writer" {
+  depends_on      = [google_logging_project_sink.audit]
+  create_duration = "30s"
+}
+
+resource "google_storage_bucket_iam_member" "sink_writer" {
+  bucket = var.audit_bucket
+  role   = "roles/storage.objectCreator"
+  member = google_logging_project_sink.audit.writer_identity
+
+  depends_on = [time_sleep.wait_for_sink_writer]
+}

@@ -26,6 +26,7 @@
 #   --domain <s>        apex domain of that zone
 #   --subdomain <s>     record name within the zone     (default demo)
 #   --feature <id:slug> edge feature module, repeatable (default 0002:bot-management)
+#   --preflight         also create the audit bucket if it is missing
 #   --non-interactive   take every answer from flags and defaults
 #   -h | --help         this message
 #
@@ -50,6 +51,7 @@ DEMOS="$ROOT/demos"
 TODAY="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 NON_INTERACTIVE=0
+PREFLIGHT=0
 NAME=""; PROJECT_ID=""; REGION=""; AUDIT_BUCKET=""
 ZONE_ID=""; DOMAIN=""; SUBDOMAIN=""
 FEATURES=()
@@ -64,6 +66,7 @@ while [ "$#" -gt 0 ]; do
     --domain)          DOMAIN="${2:?}"; shift 2 ;;
     --subdomain)       SUBDOMAIN="${2:?}"; shift 2 ;;
     --feature)         FEATURES+=("${2:?}"); shift 2 ;;
+    --preflight)       PREFLIGHT=1; shift ;;
     --non-interactive) NON_INTERACTIVE=1; shift ;;
     -h|--help)         sed -n '2,36p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *)                 die "Unknown option '$1'. Try --help." ;;
@@ -119,6 +122,24 @@ ask AUDIT_BUCKET "Audit bucket"           "${NAME%%-*}-audit"
 ask ZONE_ID      "Cloudflare zone ID"     "REPLACE_ME"
 ask DOMAIN       "Zone apex domain"       "example.com"
 ask SUBDOMAIN    "Record name in the zone" "demo"
+
+# A Cloudflare zone ID is 32 lowercase hex characters. Checking it here is
+# worth the four lines: anything else is accepted silently by the wizard and
+# only surfaces much later, as an opaque API error during the zone apply.
+# A region name is the classic wrong answer, since it is on screen one prompt
+# earlier.
+case "$ZONE_ID" in
+  REPLACE_ME) warn "Zone ID left as REPLACE_ME — fill it in before applying the zone module." ;;
+  *)
+    if ! printf '%s' "$ZONE_ID" | grep -Eq '^[0-9a-f]{32}$'; then
+      die "'$ZONE_ID' is not a Cloudflare zone ID.
+     Expected 32 lowercase hex characters, for example 023e105f4ecef8ad9ca31a8372d0c353.
+     Find it on the Cloudflare dashboard overview page for the zone, or with:
+       curl -s -H \"Authorization: Bearer \$CLOUDFLARE_API_TOKEN\" \\
+         https://api.cloudflare.com/client/v4/zones | python3 -m json.tool"
+    fi
+    ;;
+esac
 
 HOSTNAME_FQDN="${SUBDOMAIN}.${DOMAIN}"
 
@@ -267,6 +288,43 @@ if [ -d "$ROOT/src/app" ]; then
 else
   warn "src/app does not exist yet (spec 0001 task 4)."
   warn "Until it does, 'tofu validate' in terraform/gcp fails with filesha256 errors."
+fi
+
+# ── GCP pre-flight: the audit bucket ─────────────────────────────────────────
+#
+# The bucket is created OUTSIDE Terraform on purpose, so it survives
+# `tofu destroy` and keeps the evidence trail for every demo that ever ran.
+# The flip side is that nothing creates it for you, and the log sink fails at
+# apply time with "Bucket does not exist" — after everything else has already
+# been built. Doing it here turns that into a non-event.
+header "GCP pre-flight"
+
+if ! command -v gcloud >/dev/null 2>&1; then
+  warn "gcloud not on PATH — skipping. Create the audit bucket before applying:"
+  warn "  gcloud storage buckets create gs://${AUDIT_BUCKET} --project=${PROJECT_ID} \\"
+  warn "    --location=${REGION} --uniform-bucket-level-access --public-access-prevention"
+elif gcloud storage buckets describe "gs://${AUDIT_BUCKET}" --project="$PROJECT_ID" >/dev/null 2>&1; then
+  info "Audit bucket gs://${AUDIT_BUCKET} already exists — shared with other demos, as intended."
+else
+  DO_BUCKET="$PREFLIGHT"
+  if [ "$NON_INTERACTIVE" -eq 0 ] && [ "$PREFLIGHT" -eq 0 ]; then
+    read -rp "${BOLD}Create audit bucket gs://${AUDIT_BUCKET} now?${NC} (Y/n): " REPLY_B || true
+    case "${REPLY_B:-y}" in [Yy]*) DO_BUCKET=1 ;; *) DO_BUCKET=0 ;; esac
+  fi
+
+  if [ "$DO_BUCKET" -eq 1 ]; then
+    if gcloud storage buckets create "gs://${AUDIT_BUCKET}" \
+         --project="$PROJECT_ID" --location="$REGION" \
+         --uniform-bucket-level-access --public-access-prevention >/dev/null 2>&1; then
+      created "gs://${AUDIT_BUCKET}  (uniform access, public access prevented)"
+    else
+      warn "Could not create gs://${AUDIT_BUCKET}. Check the project and your permissions."
+      warn "The log sink will fail at apply time until it exists."
+    fi
+  else
+    warn "Skipped. The log sink will fail at apply time until gs://${AUDIT_BUCKET} exists."
+    warn "Re-run with --preflight, or create it by hand."
+  fi
 fi
 
 # ── Demo metadata ────────────────────────────────────────────────────────────
