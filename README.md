@@ -51,13 +51,16 @@ reused is reimplemented here as tracked code.
 Bot management first, by owner decision. The rest are ordered by effort against
 demo value — cheapest convincing demo next.
 
+> **Note:** the struck-through items below were removed from the specification
+> of this RFP, as communicated in the meeting on 26 October 2026.
+
 | # | Spec | Feature | Effort | Demo value | Why here |
 | - | ---- | ------- | ------ | ---------- | -------- |
-| 1 | [0002](specs/0002-bot-management/spec.md) | **Bot management** | Medium | High | Owner priority. Also the best-understood of the five — the CapAct MVP's first lab was "Cloudflare Bot Handling", so the origin shape and the bot simulation method are already proven. |
-| 2 | 0003 | **Rate limiting** | Low | High | One ruleset resource. The load generator we already have makes the before/after obvious and quantifiable. |
+| ~~1~~ | ~~[0002](specs/0002-bot-management/spec.md)~~ | ~~**Bot management**~~ | ~~Medium~~ | ~~High~~ | ~~Owner priority. Also the best-understood of the five — the CapAct MVP's first lab was "Cloudflare Bot Handling", so the origin shape and the bot simulation method are already proven.~~ |
+| ~~2~~ | ~~0003~~ | ~~**Rate limiting**~~ | ~~Low~~ | ~~High~~ | ~~One ruleset resource. The load generator we already have makes the before/after obvious and quantifiable.~~ |
 | 3 | 0004 | **WAF** | Low–medium | High | Managed rulesets plus a custom rule. A single SQLi payload demonstrates it; core to any Cloudflare bid. |
 | 4 | 0005 | **DDoS protection** | Low to configure, high to demo | Medium | Managed rulesets are largely on by default, so configuration is trivial — but a real volumetric attack cannot be launched, so the demo is mostly dashboard narration. Value is in the RFP answer more than the live show. |
-| 5 | 0006 | **API security** | High | High | API Shield is available on our tier, but it still needs an OpenAPI schema, endpoint discovery and schema validation to show anything. Highest effort of the five. |
+| ~~5~~ | ~~0006~~ | ~~**API security**~~ | ~~High~~ | ~~High~~ | ~~API Shield is available on our tier, but it still needs an OpenAPI schema, endpoint discovery and schema validation to show anything. Highest effort of the five.~~ |
 
 All five depend on **[0001 Platform foundation](specs/0001-platform-foundation/spec.md)**,
 which delivers the origin, the proxied hostname, the load generator and the
