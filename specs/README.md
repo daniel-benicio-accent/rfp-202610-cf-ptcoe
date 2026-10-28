@@ -9,12 +9,13 @@ described in [../docs/spec-workflow.md](../docs/spec-workflow.md).
 | 0001 | Platform foundation | Draft | None | [spec](0001-platform-foundation/spec.md) · [plan](0001-platform-foundation/plan.md) · [tasks](0001-platform-foundation/tasks.md) |
 | 0002 | Bot management | Draft | Vendor-side ML | [spec](0002-bot-management/spec.md) · [plan](0002-bot-management/plan.md) · [tasks](0002-bot-management/tasks.md) |
 | 0003 | Rate limiting | Backlog | — | not scaffolded |
-| 0004 | WAF | Backlog | — | not scaffolded |
+| 0004 | WAF | Draft | None | [spec](0004-waf/spec.md) · [plan](0004-waf/plan.md) · [tasks](0004-waf/tasks.md) · [testing plan](../docs/waf-testing-plan.md) |
 | 0005 | DDoS protection | Backlog | — | not scaffolded |
 | 0006 | API security | Backlog | — | not scaffolded |
 
-`0003`–`0006` are agreed scope but not yet written. Scaffold each one when it
-comes up the backlog, so numbers stay sequential and nothing sits half-specified.
+`0003`, `0005` and `0006` are agreed scope but not yet written. Scaffold each one
+when it comes up the backlog, so numbers stay sequential and nothing sits
+half-specified.
 Priority order and the reasoning behind it are in the root
 [README.md](../README.md#backlog).
 

@@ -93,6 +93,7 @@ Cloudflare?** Nothing downstream can start without a zone.
 | [docs/prerequisites.md](docs/prerequisites.md) | Workstation setup: WSL, OpenTofu, `gcloud`, and the environment variables. |
 | [docs/created-objects.md](docs/created-objects.md) | Checklist of every object a demo creates, for walking the consoles by hand. |
 | [docs/wafdemo-owasp-juice-shop.md](docs/wafdemo-owasp-juice-shop.md) | Runbook for the hand-written WAF demo: Juice Shop on a GCE VM behind Cloudflare. |
+| [docs/waf-testing-plan.md](docs/waf-testing-plan.md) | WAF test cases mapped to the OWASP Top 10:2025, with deprioritized items struck through. Backs spec [0004](specs/0004-waf/spec.md). |
 | [docs/inherited-from-capact.md](docs/inherited-from-capact.md) | What the CapAct MVP contributed to this work, and why. History, not a dependency. |
 
 This file and [specs/README.md](specs/README.md) are the only two READMEs in the
