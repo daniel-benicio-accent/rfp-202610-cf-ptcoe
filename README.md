@@ -18,6 +18,20 @@ The project is **spec-driven**: specifications are the source of truth and code
 is written to satisfy them, never the other way around. Nothing gets built
 before its spec is approved.
 
+## Contents
+
+- [What the demo shows](#what-the-demo-shows)
+- [Key decisions](#key-decisions)
+- [Repository map](#repository-map)
+  - [Source layout](#source-layout)
+- [Quick start](#quick-start)
+  - [Start a new piece of work](#start-a-new-piece-of-work)
+  - [Create a demo](#create-a-demo)
+  - [Apply a demo](#apply-a-demo)
+  - [Verify a demo](#verify-a-demo)
+  - [Destroy a demo](#destroy-a-demo)
+- [Conventions](#conventions)
+
 ## What the demo shows
 
 ```
@@ -35,9 +49,12 @@ Internet
 Application (Web / API)   — Cloud Run + Firestore on GCP
 ```
 
+> **Note:** Currently all we have are some codes and a PoC running in a personal lab on GCP and personal domain over CoE's Cloudflare NFR tenant. Check specs Readme for the status on move into Azure EBC tenant and domain pt-accenture.cftenant.com .  
+
 Each of the five edge capabilities is a separate feature with its own
 specification, demonstrated independently: same request, accepted before and
-refused after, with a reason attached.
+refused after, with a reason attached. Which ones are in scope, in what order,
+and how far each has got: [specs/README.md](specs/README.md#prioritized-backlog).
 
 The origin, the environment lifecycle and the traffic simulator build on
 **MyCapAct**, an earlier CoE lab-platform MVP that was used to kickstart this
@@ -46,29 +63,7 @@ contributed is recorded in
 [docs/inherited-from-capact.md](docs/inherited-from-capact.md), and anything
 reused is reimplemented here as tracked code.
 
-## Backlog
-
-Bot management first, by owner decision. The rest are ordered by effort against
-demo value — cheapest convincing demo next.
-
-> **Note:** the struck-through items below were removed from the specification
-> of this RFP, as communicated in the meeting on 26 October 2026.
-
-| # | Spec | Feature | Effort | Demo value | Why here |
-| - | ---- | ------- | ------ | ---------- | -------- |
-| ~~1~~ | ~~[0002](specs/0002-bot-management/spec.md)~~ | ~~**Bot management**~~ | ~~Medium~~ | ~~High~~ | ~~Owner priority. Also the best-understood of the five — the CapAct MVP's first lab was "Cloudflare Bot Handling", so the origin shape and the bot simulation method are already proven.~~ |
-| ~~2~~ | ~~0003~~ | ~~**Rate limiting**~~ | ~~Low~~ | ~~High~~ | ~~One ruleset resource. The load generator we already have makes the before/after obvious and quantifiable.~~ |
-| 3 | 0004 | **WAF** | Low–medium | High | Managed rulesets plus a custom rule. A single SQLi payload demonstrates it; core to any Cloudflare bid. |
-| 4 | 0005 | **DDoS protection** | Low to configure, high to demo | Medium | Managed rulesets are largely on by default, so configuration is trivial — but a real volumetric attack cannot be launched, so the demo is mostly dashboard narration. Value is in the RFP answer more than the live show. |
-| ~~5~~ | ~~0006~~ | ~~**API security**~~ | ~~High~~ | ~~High~~ | ~~API Shield is available on our tier, but it still needs an OpenAPI schema, endpoint discovery and schema validation to show anything. Highest effort of the five.~~ |
-
-All five depend on **[0001 Platform foundation](specs/0001-platform-foundation/spec.md)**,
-which delivers the origin, the proxied hostname, the load generator and the
-origin lockdown that stops the edge being bypassed.
-
-Status for every spec: [specs/README.md](specs/README.md).
-
-### Decisions taken
+## Key decisions
 
 | Decision | Value | Consequence |
 | --- | --- | --- |
@@ -76,13 +71,15 @@ Status for every spec: [specs/README.md](specs/README.md).
 | Origin lockdown | Shared-secret header injected at the edge, checked by the origin | Keeps idle cost at zero and needs no always-on load balancer. **Demo-grade on purpose** — the production recommendation is Cloud Armor allowlisting Cloudflare's ranges, and the demo narrative must say so. |
 
 Still open and blocking: **which domain hosts the demo, and is it delegated to
-Cloudflare?** Nothing downstream can start without a zone.
+Cloudflare?** Nothing downstream can start without a zone. The labs currently
+run in a personal Cloudflare/GCP environment; moving them to the target **Azure
+EBC** environment is pending and tracked per spec.
 
 ## Repository map
 
 | Path | What lives here |
 | --- | --- |
-| [specs/README.md](specs/README.md) | Index and status of every specification. **Start here.** |
+| [specs/README.md](specs/README.md) | Backlog, index and status of every specification, and the components that implement each. **Start here.** |
 | [specs/](specs/) | One folder per feature: `NNNN-slug/` with `spec.md`, `plan.md`, `tasks.md`. |
 | [specs/_templates/](specs/_templates/) | Templates the spec scaffolder copies from. |
 | [src/terraform/_templates/](src/terraform/_templates/) | The only Terraform kept in the repo. Everything else is rendered per demo. |
@@ -174,7 +171,8 @@ Then:
 2. Register it in [specs/README.md](specs/README.md).
 3. Get it reviewed and set `Status: Approved`.
 4. Write `plan.md` and `tasks.md`.
-5. Build under `src/<component>/`, and add the component to the table below.
+5. Build under `src/<component>/`, and list the component in its spec's row in
+   [specs/README.md](specs/README.md).
 
 ### Create a demo
 
@@ -287,22 +285,6 @@ module keeps its own state, nothing enforces the order for you.
 
 The audit bucket itself is created outside Terraform and survives teardown, so
 the record of what existed outlives the demo.
-
-## Components
-
-Listed as they land, each linked to the spec it implements. The Terraform
-entries are templates; each demo gets its own rendered copy.
-
-| Component | Spec | What it is | State |
-| --- | --- | --- | --- |
-| [terraform/_templates/gcp/](src/terraform/_templates/gcp/) | [0001](specs/0001-platform-foundation/spec.md) | Origin: Cloud Run, Firestore, Artifact Registry, Cloud Build, audit log sink. | Written, schema-validated against the google provider. |
-| [terraform/_templates/zone/](src/terraform/_templates/zone/) | [0001](specs/0001-platform-foundation/spec.md) | Proxied record, Host header rewrite, edge secret injection. | Written, schema-validated against cloudflare 5.28.1. TLS mode still a TODO. |
-| [terraform/_templates/feature/](src/terraform/_templates/feature/) | [0002](specs/0002-bot-management/spec.md) onward | Generic edge-feature module behind an `enable_<feature>` toggle. | Skeleton. Phase and match expression are per-feature TODOs. |
-| [scripts/bootstrap-terraform.sh](scripts/bootstrap-terraform.sh) | [0001](specs/0001-platform-foundation/spec.md) | Wizard that renders a complete demo into `demos/<name>/`, and creates the audit bucket. | Working. IAM pre-flight still open — see `0001` task 6b. |
-| [scripts/project-verify.sh](scripts/project-verify.sh) | [0001](specs/0001-platform-foundation/spec.md) | Read-only check of a demo's resources and live behaviour. | Working, exercised against a real deployment. |
-| [scripts/project-nuke.sh](scripts/project-nuke.sh) | [0001](specs/0001-platform-foundation/spec.md) | Teardown: inventory, audit upload, ordered destroy. | Working. Ordering and skip logic tested; cloud calls not yet exercised. |
-| [src/app/](src/app/) | [0001](specs/0001-platform-foundation/spec.md) | Flask whiteboard: browser UI plus REST API, edge-secret check (FR-7), arrival counter (FR-9). | Deployed and verified on Cloud Run: direct requests get 403, header requests get 200. |
-| `src/load-generator/` | [0001](specs/0001-platform-foundation/spec.md) | Vegeta-based traffic and bot simulator with Prometheus metrics. | Not started. |
 
 ## Conventions
 

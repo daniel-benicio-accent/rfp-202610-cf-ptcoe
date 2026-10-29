@@ -11,7 +11,7 @@ can be maintained alongside the code it validates.
 - **Executable tests:** the `pt-cybersecurity-coe` Bruno collection (requests `1.1`, `1.2`, `1.3`).
 
 Throughout, `$DEMO_HOST` is the proxied demo hostname; the real value is never
-written into the repository (see [conventions](conventions.md#personal-identifiers)).
+written into the repository.
 
 > **Note:** the struck-through tests below (**1.4–1.12**) were **deprioritized**
 > at the RFP scope meeting on 26 October 2026. Tests **1.1–1.3** cover the

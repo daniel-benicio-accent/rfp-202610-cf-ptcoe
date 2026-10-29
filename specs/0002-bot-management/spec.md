@@ -5,7 +5,7 @@
 | Status    | Draft |
 | Owner     | d.de.freitas.alves |
 | Created   | 2026-10-21 |
-| Updated   | 2026-10-21 |
+| Updated   | 2026-10-29 |
 | AI usage  | Vendor-side only. Cloudflare classifies bots with machine-learning models (bot score, heuristics, TLS/HTTP fingerprinting) that run at the edge. We configure the outcome, we do not train or host a model, and nothing AI-related is generated into the working tree — so no new `.gitignore` entries are needed beyond the existing assistant-tooling block. See [docs/conventions.md](../../docs/conventions.md). |
 
 ## Summary
@@ -31,6 +31,32 @@ Depends on `0001`. Nothing here can be demonstrated until there is a proxied
 hostname and the origin refuses direct traffic — otherwise the "blocked" request
 can simply be retried against the origin URL.
 
+## Mandatory scope (29 October 2026 update)
+
+The RFP update of 29 October 2026 makes bot protection a **mandatory**
+requirement, and requires it to be configured, operated, monitored and
+continuously tuned **per application**. At minimum it must cover the six abuse
+categories below. Each is fundamentally a bot problem — automated clients acting
+at scale — so each is addressed with the same Cloudflare signals (bot score,
+verified-bot detection, fingerprinting) combined with request velocity, rather
+than with a hand-written rule per attack.
+
+| # | Category | What it looks like | Primary Cloudflare signal | Needs a login flow |
+| - | -------- | ------------------ | ------------------------- | ------------------ |
+| 1 | Brute-force attacks | Many credential guesses at one account or endpoint | Bot score + velocity on the auth route | Yes |
+| 2 | Malicious scraping | Automated harvesting of catalogue/content | Bot score, verified-bot check | No |
+| 3 | Spam bots | Automated submissions to public forms | Bot score on form POSTs | No |
+| 4 | Automated form abuse | Scripted misuse of a form workflow | Bot score + velocity on form POSTs | No |
+| 5 | Account takeover (ATO) | Automated login with breached/guessed credentials | Bot score + velocity + leaked-credential check | Yes |
+| 6 | Credential stuffing | Replaying leaked username/password pairs at scale | Bot score + velocity + leaked-credential check | Yes |
+
+Categories 1, 5 and 6 need a real login flow, which the platform's whiteboard
+app does not have; see Open questions on the demo target. Categories 2–4 are
+expressible against the existing app or against Juice Shop. Where a category is
+inherently about request volume (1, 5, 6), **bot signals decide _who_ is acting
+and velocity decides _how much_** — pure volumetric limiting is `0003`, folded
+in here (see Non-goals).
+
 ## Goals
 
 - A scripted client is identified as automated and mitigated at the edge.
@@ -42,11 +68,14 @@ can simply be retried against the origin URL.
 
 ## Non-goals
 
-- Tuning detection thresholds for a production traffic profile.
-- Protecting a login or checkout flow. The demo app has neither.
-- Credential stuffing or carding scenarios — related, but separate stories.
-- Rate-based mitigation. That is `0003`; keeping them apart is what makes each
-  one legible on its own.
+- Delivering a production-tuned configuration. Per-application tuning and
+  monitoring are in scope as a demonstrated capability and an RFP answer (29 Oct
+  update), but the demo does not ship a hardened per-tenant baseline.
+- Carding / payment-fraud scenarios. Related to credential stuffing, but the
+  demo app has no payment flow.
+- Pure volumetric rate limiting as a standalone control — that is `0003`, now
+  folded into this feature and API Security. Bot-specific brute-force and
+  credential-stuffing detection (bot signals plus velocity) is in scope here.
 
 ## Scenarios
 
@@ -78,6 +107,15 @@ can simply be retried against the origin URL.
 - **Then** the edge absorbs it, the origin counter stays flat, and the load
   generator's own metrics show what was sent
 
+**S-5 — Credential abuse against a login flow is mitigated**
+
+- **Given** bot mitigation is enabled on an application with a login endpoint
+- **When** an automated client replays many username/password pairs at the login
+  (credential stuffing) or hammers one account (brute-force)
+- **Then** the attempts are mitigated at the edge on bot score and velocity —
+  and, where enabled, Cloudflare's leaked-credential detection flags known
+  breached pairs — while a human logging in is unaffected
+
 ## Functional requirements
 
 | ID | Requirement | Scenario |
@@ -92,6 +130,9 @@ can simply be retried against the origin URL.
 | FR-8 | Sent-versus-arrived counts are readable for a demo window. | S-1, S-4 |
 | FR-9 | Mitigation is driven by the Cloudflare bot score against a configurable threshold — not by matching user-agent strings. | S-1, S-3 |
 | FR-10 | Bot analytics show the score distribution for the demo window, so the audience sees classification rather than just a verdict. | S-4 |
+| FR-11 | Each of the six mandatory abuse categories (brute-force, scraping, spam, form abuse, account takeover, credential stuffing) is covered by a documented rule or managed feature, mapped in "Mandatory scope". | S-1, S-5 |
+| FR-12 | Brute-force, account-takeover and credential-stuffing coverage is demonstrated against a real login flow, combining bot score with request velocity. | S-5 |
+| FR-13 | Configuration, mitigated-event monitoring and tuning are scoped per application (per hostname/route), not as a single zone-wide setting. | S-1, S-5 |
 
 ## Non-functional requirements
 
@@ -112,6 +153,8 @@ can simply be retried against the origin URL.
 - [ ] Enabling and disabling the feature is a single toggle with no origin changes in the plan.
 - [ ] The rule matches on bot score, and changing the threshold changes what is mitigated.
 - [ ] Bot analytics for the demo window show the score distribution.
+- [ ] Each of the six mandatory categories maps to a rule or managed feature in the module, per "Mandatory scope".
+- [ ] A login flow is in place (Juice Shop or an added whiteboard login) so brute-force, ATO and credential stuffing are demonstrable, not only described.
 
 ## Open questions
 
@@ -121,3 +164,6 @@ can simply be retried against the origin URL.
 | Which mitigation action do we demo? Block is the clearest on a terminal; managed challenge is more realistic and shows Cloudflare preserving access for humans. A case can be made for showing both, one after the other. | | |
 | Do we want to show a genuine verified bot being allowed through, not just a spoofed one being caught? That needs a real crawler hitting the zone, which is hard to arrange on demand. | | |
 | What bot score threshold do we demo at? Cloudflare treats <= 30 as likely automated and 1 as definitely automated. A threshold of 30 is the defensible default, but the exact number is worth choosing deliberately since the audience will ask about false positives. | | |
+| Which application hosts the login-dependent categories (brute-force, ATO, credential stuffing)? The platform whiteboard has no login; OWASP Juice Shop — already used for the WAF lab — does. | d.de.freitas.alves | Leaning Juice Shop, to reuse the WAF lab's origin and show a real auth flow. Alternative: add a minimal login to the whiteboard app. |
+| Is Cloudflare's leaked-credential / exposed-credential detection in scope for the credential-stuffing and ATO categories? | | Available on our tier and would strengthen categories 5–6; confirm whether to enable it for the demo. |
+| Does the move to the target **Azure EBC** environment change anything here? The groundwork runs in a personal Cloudflare/GCP lab today. | d.de.freitas.alves | Cloudflare config is origin-agnostic, so the rules should port unchanged; confirm the origin and zone once the EBC environment is decided. |

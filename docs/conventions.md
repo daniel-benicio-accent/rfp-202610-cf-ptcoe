@@ -21,15 +21,22 @@ Spec numbers are sequential and never reused, including for abandoned specs.
 ## README upkeep
 
 The root [README.md](../README.md) is the entry point for anyone who opens this
-repository cold. Keep it **brief and objective**, and update it in the same
-change that makes it stale — specifically when:
+repository cold. Keep it **brief and objective** — the big picture and how to
+get started — and update it in the same change that makes it stale,
+specifically when:
 
-- a new demo component lands under `src/`;
-- a spec reaches `Done`;
+- the repository layout changes;
 - the quick start commands change.
+
+Backlog, spec status and component state belong in
+[../specs/README.md](../specs/README.md), not here.
 
 If a section is growing past a screen, move the detail into `docs/` and leave a
 link behind.
+
+Both READMEs open with their purpose, followed by a **Contents** list linking
+every section. Add, rename or remove a heading and the Contents list changes in
+the same edit.
 
 ## Where documentation lives
 
@@ -37,16 +44,16 @@ Two README files, and no others:
 
 | File | Holds |
 | ---- | ----- |
-| [../README.md](../README.md) | Everything about the demo: purpose, backlog, layout, how to run it, component state. |
-| [../specs/README.md](../specs/README.md) | The spec index, status and dependency graph. Linked from the root README. |
+| [../README.md](../README.md) | The big picture and how to start: purpose, what the demo shows, key decisions, repository map and layout, quick start. |
+| [../specs/README.md](../specs/README.md) | Backlog and priorities, the spec index and status, component state, and the dependency graph. Linked from the root README. |
 
 **Do not add a README to a component directory.** Scattering them means the
 same fact gets written three times and two of the copies go stale. Supporting
 detail goes in `docs/`; anything a reader needs in order to touch the code goes
 in the code as a comment, next to the thing it explains.
 
-A component still has to be documented — as a row in the root README's
-component table, and as comments in its own source. It must also run from a
+A component still has to be documented — as an entry in its spec's row of
+[../specs/README.md](../specs/README.md), and as comments in its own source. It must also run from a
 clean checkout, with no step that only exists on someone's laptop.
 
 ## AI-related specifications
@@ -62,29 +69,6 @@ the working tree by default. Those must never reach the remote.
 The spec template carries an **AI usage** field; filling it in with anything
 other than `None` is the trigger to review `.gitignore` before the spec is
 approved.
-
-## Personal identifiers
-
-Nothing in this repository names a personal domain, personal account or private
-email address. Where an earlier project or a prerequisite has to be referred to,
-use a placeholder instead:
-
-| Real value | Write this instead |
-| ---------- | ------------------ |
-| `dbenicio.com` | `personal-domain-1` |
-| `opsylab.com.br` | `personal-domain-2` |
-
-Add a row when a new one comes up, and keep the numbering stable so existing
-documents stay accurate.
-
-The reason is scope, not secrecy: this repository goes to a client-facing bid
-and may be handed over. A personal domain or account appearing in it reads as
-either a mistake or an undeclared dependency, and neither is a good look in a
-security proposal. The same logic is why a personal zone should not host the
-demo itself.
-
-Work identifiers are fine — spec owners, the Accenture distribution lists, the
-repository's own remote.
 
 ## Secrets
 

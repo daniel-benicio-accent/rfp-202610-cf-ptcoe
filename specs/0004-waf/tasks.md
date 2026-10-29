@@ -27,6 +27,6 @@ behind it is scope creep — either drop it or add the requirement to `spec.md`.
 
 - [ ] Every acceptance criterion in `spec.md` passes.
 - [ ] Code lives under `src/` and runs from a clean checkout.
-- [ ] Root `README.md` component index updated.
+- [ ] Component listed in its spec's row of `specs/README.md`.
 - [ ] `specs/README.md` status updated.
 - [ ] If AI usage is not `None`, `.gitignore` reviewed.
