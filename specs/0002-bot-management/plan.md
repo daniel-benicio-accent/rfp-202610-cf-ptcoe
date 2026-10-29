@@ -8,7 +8,7 @@
 | Field   | Value |
 | ------- | ----- |
 | Status  | Draft |
-| Updated | 2026-10-21 |
+| Updated | 2026-10-29 |
 
 ## Approach
 
@@ -65,7 +65,11 @@ S-4 from the load generator. Capture the event log and the score distribution
 for the window. Then change the threshold and show the match set change — that
 is the FR-9 evidence.
 
-## Rollout
+## Rollout notes
+
+> **Demo notes pending.** No demonstration tips have been written for this
+> feature yet. Rehearse it end to end against the acceptance criteria in
+> `spec.md` before showing it to anyone.
 
 Blocked on `0001`. Needs the proxied hostname (FR-5) and the origin lockdown
 (FR-7) before any of this can be shown honestly — without them, a "blocked"

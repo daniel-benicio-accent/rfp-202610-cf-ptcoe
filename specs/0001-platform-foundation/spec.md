@@ -5,15 +5,24 @@
 | Status    | Draft |
 | Owner     | d.de.freitas.alves |
 | Created   | 2026-10-21 |
-| Updated   | 2026-10-21 |
+| Updated   | 2026-10-29 |
 | AI usage  | None |
+
+> **Note — target environment, 29 October 2026.** The demo moves to the
+> **Azure EBC tenant**, on the domain **`pt-accenture.cftenant.com`**. Until it
+> does, the code and the PoCs run in a personal lab: the origin on GCP, behind
+> the CoE's Cloudflare NFR tenant, on a personal domain (`personal-domain-1`).
+> That lab is for building and rehearsing; it is not where the client sees the
+> demo. The GCP implementation stays the reference until the Azure design is
+> written — see Open questions.
 
 ## Summary
 
 The disposable demo environment that every Cloudflare feature in this
-repository is demonstrated on: an origin web/API application on GCP, a
-Cloudflare zone in front of it, and a load generator to drive traffic — all
-created and destroyed by two scripts.
+repository is demonstrated on: an origin web/API application, a Cloudflare zone
+in front of it, and a load generator to drive traffic — all created and
+destroyed by two scripts. The origin runs on GCP today and moves to the Azure
+EBC tenant, under `pt-accenture.cftenant.com`, for the client demo.
 
 ## Context
 
@@ -39,8 +48,15 @@ whiteboard on Cloud Run with both a browser UI and a REST API — wrapped in a
 bootstrap/teardown script pair with an audit trail. That MVP lives in a separate
 project and is not a dependency here;
 [docs/inherited-from-capact.md](../../docs/inherited-from-capact.md) records
-what its design contributed. The decision to keep GCP, Terraform and the
-two-script workflow is a given, not an open choice.
+what its design contributed. Terraform and the two-script workflow are a given,
+not an open choice. GCP was too, until the target moved to Azure on 29 October
+2026; the GCP origin is now the reference the Azure one is ported from.
+
+| | Today (lab and PoCs) | Target (client demo) |
+| --- | --- | --- |
+| Origin cloud | GCP, personal lab projects | Azure EBC tenant |
+| Domain | `personal-domain-1` | `pt-accenture.cftenant.com` |
+| Cloudflare account | CoE NFR tenant | To confirm: the account that holds `pt-accenture.cftenant.com` |
 
 What must change is how that code is organized. The MVP's bootstrap script
 generates the application and all Terraform from roughly 1100 lines of embedded
@@ -58,11 +74,15 @@ per feature.
 - Traffic reaching the origin is observable, so "the edge stopped it" is backed
   by evidence rather than assertion.
 - Idle cost stays near zero.
+- The client demo is served from the target tenant and domain, not from the
+  personal lab.
 
 ## Non-goals
 
-- Production hardening of the origin. This is a demo of the edge, not of GCP.
-- Multi-cloud. GCP only.
+- Production hardening of the origin. This is a demo of the edge, not of the
+  cloud behind it.
+- Running one demo across two clouds. The origin is on one cloud at a time: GCP
+  in the lab, Azure on the target.
 - CI/CD. Environments are created from a workstation.
 - Any of the five edge capabilities themselves — each has its own spec.
 - Keeping the MVP's multi-lab catalog framing.
@@ -71,7 +91,8 @@ per feature.
 
 **S-1 — Stand up a demo environment**
 
-- **Given** a workstation with `gcloud`, `tofu` and a Cloudflare API token
+- **Given** a workstation with `tofu`, the origin cloud's CLI (`gcloud` in the
+  lab, `az` on the target) and a Cloudflare API token
 - **When** the operator runs the bootstrap script and answers its prompts
 - **Then** a uniquely named environment is scaffolded, and after applying
   Terraform the application is reachable over HTTPS at a Cloudflare-proxied
@@ -102,7 +123,7 @@ per feature.
 | ID | Requirement | Scenario |
 | ---- | ----------- | -------- |
 | FR-1 | A bootstrap script scaffolds a uniquely named environment (`<prefix>-<unix-epoch>`) so several can run in parallel. | S-1 |
-| FR-2 | The script checks prerequisites and performs the GCP IAM pre-flight before Terraform runs. | S-1 |
+| FR-2 | The script checks prerequisites and performs the origin cloud's IAM pre-flight (GCP in the lab, Azure on the target) before Terraform runs. | S-1 |
 | FR-3 | The origin application and Terraform are tracked files under `src/`. Bootstrap renders only per-environment configuration. | S-1 |
 | FR-4 | The origin exposes both a browser UI and a REST API on the same hostname. | S-2 |
 | FR-5 | A Cloudflare-proxied DNS record points at the origin, terminating TLS at the edge. | S-1 |
@@ -122,11 +143,12 @@ per feature.
 | NFR-2 | Time from bootstrap to reachable application | Under 20 minutes, unattended after the prompts. |
 | NFR-3 | No secrets in the repository | Cloudflare API token and the FR-7 edge secret both come from the environment. No credentials in tracked files. |
 | NFR-4 | Reproducibility | A clean checkout plus the documented prerequisites is enough. |
-| NFR-5 | IaC tooling | OpenTofu ≥ 1.5, Google provider ~> 7.x, Cloudflare provider ~> 5.x. |
+| NFR-5 | IaC tooling | OpenTofu ≥ 1.5, Cloudflare provider ~> 5.x. Google provider ~> 7.x for the lab; the Azure provider is pinned when the Azure origin is planned. |
 
 ## Acceptance criteria
 
 - [ ] Bootstrap run from a clean checkout yields a reachable HTTPS hostname served through Cloudflare.
+- [ ] For the client demo, that hostname is under `pt-accenture.cftenant.com` and the origin runs in the Azure EBC tenant.
 - [ ] `curl` against the Cloudflare hostname returns the app and the response carries Cloudflare edge headers.
 - [ ] `curl` against the origin URL directly is refused (FR-7).
 - [ ] The load generator reports requests sent, and origin-side request count can be read for the same window.
@@ -138,7 +160,8 @@ per feature.
 
 | Question | Owner | Resolution |
 | -------- | ----- | ---------- |
-| Which domain hosts the demo, and is it already delegated to Cloudflare? The CapAct MVP ran under `personal-domain-2`, which is not a suitable home for a client-facing RFP demo — a practice-owned zone is probably needed. A zone with working nameservers is a hard prerequisite for every feature. | d.de.freitas.alves | **Open.** Blocks FR-5 and therefore the whole backlog. |
-| Which Cloudflare plan is available? This gates the backlog: Bot Management scores and API Shield are Enterprise, Super Bot Fight Mode is Pro/Business. | d.de.freitas.alves | **Resolved 2026-10-21 — Enterprise with the Bot Management add-on.** `cf.bot_management.score`, verified-bot detection and bot analytics are all available, so `0002` and `0006` can be specified against the full feature set. |
-| How is FR-7 enforced? Cloud Run's URL is public and cannot be IP-restricted. | d.de.freitas.alves | **Resolved 2026-10-21 — shared-secret header.** Cloudflare injects a secret request header at the edge; the origin refuses anything without it. Zero added cost and no always-on infrastructure. Explicitly demo-grade: a production engagement would put the origin behind a load balancer with Cloud Armor allowlisting Cloudflare's ranges, and the demo narrative should say so rather than imply the header is the recommendation. |
+| Which domain hosts the demo, and is it already delegated to Cloudflare? The CapAct MVP ran under `personal-domain-2`, and the current lab under `personal-domain-1`; neither is a suitable home for a client-facing RFP demo. A zone with working nameservers is a hard prerequisite for every feature. | d.de.freitas.alves | **Domain decided 2026-10-29 — `pt-accenture.cftenant.com`.** Still open, and still blocking FR-5 on the target: that the zone is active on Cloudflare, which Cloudflare account holds it, and that it is Enterprise. If that account is not the CoE NFR tenant, account-level configuration — the `0004` managed ruleset — has to be applied there as well. |
+| Which Cloudflare plan is available? This gates the backlog: Bot Management scores and API Shield are Enterprise, Super Bot Fight Mode is Pro/Business. | d.de.freitas.alves | **Resolved 2026-10-21 — Enterprise with the Bot Management add-on**, on the CoE NFR tenant. `cf.bot_management.score`, verified-bot detection and bot analytics are all available, so `0002` and `0006` can be specified against the full feature set. To re-confirm for the account that holds the target domain. |
+| How is FR-7 enforced? Cloud Run's URL is public and cannot be IP-restricted. | d.de.freitas.alves | **Resolved 2026-10-21 — shared-secret header.** Cloudflare injects a secret request header at the edge; the origin refuses anything without it. Zero added cost and no always-on infrastructure. Explicitly demo-grade: a production engagement would put the origin behind a load balancer with Cloud Armor allowlisting Cloudflare's ranges, and the demo narrative should say so rather than imply the header is the recommendation. The check lives in the app, so it carries over to Azure unchanged; the Azure counterpart of the Cloud Armor allowlist is still to be named. |
+| Which Azure services replace the GCP origin on the EBC tenant — compute for the Flask app, the Firestore store, the image registry and build, the audit log sink and bucket — and who grants access to the tenant? | d.de.freitas.alves | **Open.** Blocks the Azure plan. Until it is answered, `plan.md` describes the GCP implementation only. |
 | Is the demo presented live against real infrastructure, or recorded? Changes how much the environment must tolerate being rebuilt on the day. | | |

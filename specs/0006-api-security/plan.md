@@ -62,7 +62,7 @@ off-schema request, mTLS refuses an unenrolled client, a per-route limit throttl
 one route, anomaly detection flags abnormal use. Each rejection is read back from
 the event log.
 
-## Rollout
+## Rollout notes
 
 Blocked on `0001` and `0004`. Filled in once the spec is approved and the mTLS
 approach (shared with the DDoS PoC) is settled.

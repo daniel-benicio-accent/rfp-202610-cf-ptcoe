@@ -8,7 +8,7 @@ show the same requests before and after.
 
 ```
 visitor ──HTTPS──> Cloudflare edge ──HTTPS (full)──> VM :443  nginx ──> Juice Shop :3000
-                   └ WAF: XSS + LFI managed rules, OWASP Core (Podman, host network)
+                   └ WAF: Cloudflare Managed (tenant), OWASP Core (zone)   (Podman, host network)
 ```
 
 | Module | Path | What it creates |
@@ -16,7 +16,7 @@ visitor ──HTTPS──> Cloudflare edge ──HTTPS (full)──> VM :443  ng
 | Origin | `terraform/gcp/` | New project, VPC, firewall, static IP, Ubuntu 24.04 VM (e2-small), VM service account, IAP/OS Login access |
 | Bootstrap | `bootstrap/startup-script.sh.tftpl` | Runs on every boot: upgrade (first boot), Podman, self-signed origin cert, nginx + Juice Shop containers |
 | DNS | `terraform/cloudflare/zone/` | Proxied A record, per-hostname origin TLS mode |
-| WAF | `terraform/cloudflare/waf/` | Managed Rules — XSS Protection, Managed Rules — LFI Protection and the Cloudflare OWASP Core Ruleset, all behind `enable_waf` |
+| WAF | `terraform/cloudflare/waf/` | The Cloudflare Managed Ruleset at tenant (account) level, every rule blocking, and the Cloudflare OWASP Core Ruleset at zone level, both behind `enable_waf` |
 
 This demo is written by hand, not rendered by `bootstrap-terraform.sh`, and
 `project-nuke.sh` does not know about it. Tear it down with the steps at the end.
@@ -33,15 +33,18 @@ This demo is written by hand, not rendered by `bootstrap-terraform.sh`, and
 
   | Permission | Used by |
   | --- | --- |
-  | Zone → Zone → Read | the pre-flight check below |
+  | Zone → Zone → Read | the pre-flight check below; `waf/` finds the tenant account from the zone |
   | Zone → DNS → Edit | `zone/` record; `waf/` proxied check |
   | Zone → Config Settings → Edit | `zone/` per-hostname SSL configuration rule |
-  | Zone → Zone WAF → Edit | `waf/` ruleset and entitlement check |
+  | Zone → Zone WAF → Edit | `waf/` OWASP ruleset and entitlement check |
+  | Account → Account WAF → Edit | `waf/` tenant-level managed ruleset and entitlement check |
 
-  Under Zone Resources, choose **Include → Specific zone → the demo zone**. The
-  WAF uses the Cloudflare Managed Ruleset and the OWASP Core Ruleset, and both
-  need a **Pro plan or higher**. The WAF module checks this and refuses to plan
-  without it.
+  Under Zone Resources, choose **Include → Specific zone → the demo zone**;
+  under Account Resources, the tenant account. The Cloudflare Managed Ruleset
+  runs at account level, which needs **Enterprise**, and only applies to
+  Enterprise zones; the OWASP Core Ruleset runs on the zone and needs a **Pro
+  plan or higher**. The WAF module checks both entitlements and refuses to plan
+  without them.
 - Check the values in each module's `terraform.tfvars`. The hostname is set in
   all three and must be the same everywhere.
 
@@ -121,7 +124,8 @@ curl -s "https://api.cloudflare.com/client/v4/zones?name=${DEMO_HOST#*.}" \
 Expect `success: true` and one zone. Its `id` must equal `zone_id` in
 `cloudflare/zone/terraform.tfvars` and `cloudflare/waf/terraform.tfvars`, and
 its `status` must be `active`. The `plan` value tells you in advance whether
-step 4 will work: the WAF needs Pro or higher.
+step 4 will work: the tenant-level managed ruleset only covers Enterprise
+zones.
 
 Then:
 
@@ -174,29 +178,30 @@ tofu init
 tofu apply -var 'enable_waf=true'
 ```
 
-This deploys three protections, all scoped to the demo hostname. They run in
-this order:
+This deploys two rulesets. They run in this order:
 
-| # | Requirement | What Cloudflare runs | Blocks when |
-| - | --- | --- | --- |
-| 1 | Managed Rules — XSS Protection | Cloudflare Managed Ruleset, only rules tagged `xss` | any one rule matches |
-| 2 | Managed Rules — LFI Protection | Cloudflare Managed Ruleset, only rules tagged `lfi` | any one rule matches |
-| 3 | OWASP Core Ruleset | Cloudflare OWASP Core Ruleset, PL1 | the anomaly score reaches 40 (rule *949110*) |
+| # | Level | What Cloudflare runs | Scope | Blocks when |
+| - | --- | --- | --- | --- |
+| 1 | Tenant (account) | Cloudflare Managed Ruleset, every rule on, action `block` | Enterprise zones in the account, optionally only `managed_ruleset_zones` | any one rule matches |
+| 2 | Zone | Cloudflare OWASP Core Ruleset, PL1 | the demo hostname | the anomaly score reaches 40 (rule *949110*) |
 
-Cloudflare has no rulesets named "XSS Protection" or "LFI Protection". XSS and
-LFI are rule tags inside the Cloudflare Managed Ruleset. The module runs that
-ruleset with every rule off except those two tags. Rows 1 and 2 are therefore
-a single execute rule, and each tag can be switched off on its own. The XSS
-and LFI rules go first because they block on a single match, so XSS and LFI
-attempts are credited to the protections the requirement names. OWASP then
-inspects everything still standing. The change is live within seconds.
+Cloudflare evaluates account-level rulesets before zone-level ones, and a block
+ends evaluation, so the managed ruleset is credited first and OWASP inspects
+only what it let through. The change is live within seconds.
+
+> The first version of this module ran the managed ruleset restricted to its
+> `xss` and `lfi` tags, as "Managed Rules — XSS Protection" and "LFI
+> Protection". Those are no longer available; the whole Cloudflare Managed
+> Ruleset was the only managed deployment that worked. See the note in
+> [spec 0004](../specs/0004-waf/spec.md).
 
 Before anything is created, the plan checks:
 
 | Check | If it fails |
 | --- | --- |
-| The zone is entitled to both managed rulesets | The plan **stops**: Free plan, or a token without WAF permission. |
-| The `xss` and `lfi` tags exist in the live Cloudflare Managed Ruleset | The plan **stops** and lists the similar tags the ruleset does have. Put the right one in `xss_category` / `lfi_category`. |
+| The account is entitled to the Cloudflare Managed Ruleset at account level | The plan **stops**: not Enterprise, or a token without Account WAF permission. |
+| The zone is entitled to the OWASP Core Ruleset | The plan **stops**: Free plan, or a token without Zone WAF permission. |
+| The demo zone is in `managed_ruleset_zones`, when that list is set | **Warning**: the managed ruleset never inspects the demo. |
 | The hostname is a proxied record | **Warning**: the traffic never reaches Cloudflare, so the WAF never sees it. |
 | The origin is locked to Cloudflare | **Warning**: the WAF can be skipped by going straight to the VM's IP. |
 
@@ -204,44 +209,48 @@ Fix any warning before the demo. Then confirm what is deployed, with the rules
 in the order Cloudflare evaluates them:
 
 ```bash
-tofu output managed_protections     # { "LFI Protection" = "lfi", "XSS Protection" = "xss" }
+tofu output cloudflare_managed_ruleset
 eval "$(tofu output -raw verify_command)"
-# true    efb7b8c949ac4650a09736fc376e9aee    Managed Rules — LFI Protection, XSS Protection
-# true    4814384a9e5d4991b9815dcfc25d2f1f    Cloudflare OWASP Core Ruleset, PL1, threshold 40, block
+# accounts  true    efb7b8c949ac4650a09736fc376e9aee    Cloudflare Managed Ruleset, all rules, block
+# zones     true    4814384a9e5d4991b9815dcfc25d2f1f    Cloudflare OWASP Core Ruleset, PL1, threshold 40, block
 ```
 
 Repeat the baseline requests. The ones the rules catch now get Cloudflare's
 block page (403, with a Ray ID) and never reach the VM. In the dashboard,
 Security → Events, filtered by host, shows which ruleset and which rule fired:
-**Cloudflare Managed Ruleset** with the XSS or LFI rule's name, or **Cloudflare
+**Cloudflare Managed Ruleset** with the matching rule's name, or **Cloudflare
 OWASP Core Ruleset** with the anomaly score reached.
 
-Switch one protection off, for example to show OWASP catching what the XSS
-rules would have caught:
+Disable the managed ruleset, to show OWASP catching what it would have caught,
+then enable it again. Neither removes anything; the plan is an in-place update
+of the rule's `enabled` flag. The full set of commands and checks is in the
+Rollout notes of [the 0004 plan](../specs/0004-waf/plan.md#rollout-notes).
 
 ```bash
-tofu apply -var 'enable_waf=true' -var 'enable_xss_protection=false'
-tofu apply -var 'enable_waf=true' -var 'enable_lfi_protection=false'
+tofu apply -var 'enable_waf=true' -var 'enable_cloudflare_managed_ruleset=false'
+tofu apply -var 'enable_waf=true'
 ```
 
-Tuning, for showing sensitivity against false positives. If a request gets
-past OWASP, it scored below the threshold:
+Tuning, for showing sensitivity against false positives. Disable the managed
+ruleset first, or nothing reaches OWASP. If a request gets past OWASP, it
+scored below the threshold:
 
 ```bash
-tofu apply -var 'enable_waf=true' -var 'owasp_score_threshold=25'                  # high sensitivity
-tofu apply -var 'enable_waf=true' -var 'owasp_paranoia_level=2'                    # more rules
+tofu apply -var 'enable_waf=true' -var 'enable_cloudflare_managed_ruleset=false' -var 'owasp_score_threshold=25'   # high sensitivity
+tofu apply -var 'enable_waf=true' -var 'enable_cloudflare_managed_ruleset=false' -var 'owasp_paranoia_level=2'     # more rules
 tofu apply -var 'enable_waf=true' -var 'owasp_action=managed_challenge'            # challenge, not block
-tofu apply -var 'enable_waf=true' -var 'managed_rules_action=managed_challenge'    # same, for XSS/LFI
+tofu apply -var 'enable_waf=true' -var 'managed_rules_action=managed_challenge'    # same, for the managed ruleset
 ```
 
 **Switch the WAF off:**
 
 ```bash
-tofu apply -var 'enable_waf=false'      # or: tofu destroy
+tofu apply -var 'enable_waf=false'
 ```
 
-This deletes the ruleset. Requests reach Juice Shop again, still through
-Cloudflare.
+This disables both rules in place; the rulesets stay deployed. Requests reach
+Juice Shop again, still through Cloudflare. Only `tofu destroy` removes the
+rulesets.
 
 **Take Cloudflare out of the path entirely.** This is optional and a different
 point. It shows the app with no edge at all, not just with no WAF.
@@ -254,13 +263,13 @@ cd ../cloudflare/zone && tofu apply -var 'proxied=false'
 DNS now returns the VM's own IP. HTTPS hits the self-signed origin certificate,
 so the browser warns. Revert both before going back to the WAF story.
 
-> **Dashboard alternative:** Security → WAF → Managed rules. Deploy the
-> Cloudflare Managed Ruleset with the scope edited to the demo hostname. Under
-> its configuration, browse rules, disable all, then enable only the `xss` and
-> `lfi` tags. Deploy the Cloudflare OWASP Core Ruleset with the same scope, and
-> set paranoia level, score threshold and action. Do not mix with the Terraform
-> module: a zone holds one managed-WAF ruleset, and whichever was created
-> second fails.
+> **Dashboard alternative:** in the account's WAF managed rules, deploy the
+> Cloudflare Managed Ruleset to Enterprise zones, with every rule enabled and the
+> ruleset action set to Block. On the demo zone, Security → WAF → Managed rules,
+> deploy the Cloudflare OWASP Core Ruleset scoped to the demo hostname, and set
+> paranoia level, score threshold and action. Do not mix with the Terraform
+> module: an account and a zone each hold one managed-WAF entry point, and
+> whichever was created second fails.
 
 ## Tear down
 
@@ -272,6 +281,9 @@ tofu -chdir=cloudflare/waf  destroy
 tofu -chdir=cloudflare/zone destroy
 tofu -chdir=gcp             destroy
 ```
+
+The first step also removes the tenant-level managed ruleset from the account,
+for every zone it covered.
 
 The last step deletes the project. GCP keeps it in a pending-deletion state for
 30 days, and the project ID cannot be reused during that time. Choose a new
@@ -292,8 +304,10 @@ an in-use static IP and a 10 GB disk.
 | `403 Forbidden` … `"code":10000,"message":"Authentication error"` on every Cloudflare call | The token cannot act on this zone. It may be scoped to another zone or account, it may lack the permissions above, or `zone_id` may be wrong. Run the pre-flight check in step 3. If DNS and rulesets both fail, the problem is zone scope, not a single missing permission. |
 | Cloudflare 521 / 522 | Origin unreachable: VM down, containers not running, or the firewall lock is on with a stale range list — re-apply `gcp/`. |
 | Cloudflare 525 / 526 | TLS mode mismatch. Use `origin_ssl_mode = "full"`; `strict` rejects the self-signed certificate. |
-| `a similar configuration already exists` | That ruleset phase already has rules created in the dashboard. Delete them there, or import the ruleset into this module. |
-| WAF plan: `no access to the Cloudflare OWASP Core Ruleset` or `… Managed Ruleset` | The zone is on the Free plan, or the token lacks Zone WAF permission. Both rulesets need Pro or higher. |
-| WAF plan: `Tag(s) … not found in the Cloudflare Managed Ruleset` | The default tag name is wrong for this ruleset version. The message lists the related tags it does have. Set `xss_category` / `lfi_category` in `waf/terraform.tfvars`. |
-| WAF plan warns `not a proxied record` or `origin VM still accepts traffic` | See the checks table in step 4. Both mean requests can avoid the OWASP ruleset. |
+| `a similar configuration already exists`, or `exceeded maximum number of zone rulesets for phase` | That account or zone phase already has an entry point, created in the dashboard, by an earlier version of this module, or by another demo. Delete it there, or import it into this module — see the Rollout notes in [the 0004 plan](../specs/0004-waf/plan.md#rollout-notes). |
+| WAF plan: `403` with code `9109` on `data.cloudflare_zone.demo`, or `10000` on `dns_records` | The token lacks **Zone → Zone → Read** or **Zone → DNS**. Account-level permissions with the same names (e.g. Account → DNS Settings) do not cover them. |
+| WAF plan: `Account … has no access to the Cloudflare Managed Ruleset` | The account is not Enterprise with account-level WAF, or the token lacks Account WAF permission on it. |
+| WAF plan: `Zone … has no access to the Cloudflare OWASP Core Ruleset` | The zone is on the Free plan, or the token lacks Zone WAF permission. OWASP needs Pro or higher. |
+| WAF on, but nothing credited to the Cloudflare Managed Ruleset | The demo zone is not Enterprise, or not in `managed_ruleset_zones`. Account-level managed rulesets skip it. |
+| WAF plan warns `not a proxied record` or `origin VM still accepts traffic` | See the checks table in step 4. Both mean requests can avoid the WAF. |
 | Record conflicts with the bot demo | `demos/cfdemo-capability-bot/terraform/cloudflare/zone` uses the same hostname. Apply only one of the two. |

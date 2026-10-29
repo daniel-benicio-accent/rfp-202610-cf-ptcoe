@@ -2,7 +2,7 @@
 
 | Field   | Value |
 | ------- | ----- |
-| Updated | 2026-10-28 |
+| Updated | 2026-10-29 |
 
 > Draft breakdown — finalised once `spec.md` is `Approved`. A reference
 > implementation already exists under
@@ -14,14 +14,15 @@ behind it is scope creep — either drop it or add the requirement to `spec.md`.
 
 | # | Task | Covers | Status |
 | - | ---- | ------ | ------ |
-| 1 | Confirm the demo zone's Pro-or-higher entitlement for the Managed and OWASP rulesets, on the zone itself. | FR-10 | todo |
-| 2 | Generalise the reference WAF module into `src/terraform/_templates/feature/` so the wizard renders it. | FR-1 | todo |
+| 1 | Confirm account-level WAF on the tenant (Cloudflare Managed Ruleset), the zone's OWASP entitlement, and that the demo zone is Enterprise — on the account and the zone themselves. | FR-10 | todo |
+| 2 | Generalise the reference WAF module into `src/terraform/_templates/feature/` so the wizard renders it, with the tenant-level ruleset kept to one root per account. | FR-1 | todo |
 | 3 | Capture the baseline with the WAF off: SQLi authenticates; XSS and traversal reach the origin. | FR-2 | todo |
-| 4 | Verify each vector is blocked (403 + Ray ID) with the WAF on and credited to the named ruleset. | FR-3, FR-4, FR-7 | todo |
-| 5 | Exercise independent protection toggles and the defined evaluation order. | FR-5, FR-6 | todo |
+| 4 | Verify each vector is blocked (403 + Ray ID) with the WAF on and credited to the Cloudflare Managed Ruleset. | FR-3, FR-4, FR-7 | todo |
+| 5 | Exercise the independent ruleset toggles and the evaluation order: managed ruleset disabled, OWASP takes over; enabled again, managed is credited. | FR-5, FR-6 | todo |
 | 6 | Exercise action and sensitivity variables (action, score threshold, paranoia level). | FR-8, FR-9 | todo |
-| 7 | Verify the plan-time guards: entitlement/tag failures, proxied/origin-lock warnings. | FR-10, FR-11, FR-12 | todo |
-| 8 | Verify the off switch deletes the ruleset with no DNS/origin change, and no-bypass holds. | FR-13 | todo |
+| 7 | Verify the plan-time guards: entitlement failures; proxied, origin-lock and zone-scope warnings. | FR-10, FR-12 | todo |
+| 8 | Verify every off switch is an in-place disable — no ruleset destroyed or recreated, no DNS/origin change — and that no-bypass holds. | FR-13 | todo |
+| 9 | Decide the tenant-level scope (every Enterprise zone, or a zone list) before the first apply, and remove or import any dashboard-created account entry point. | FR-4, FR-14 | todo |
 
 ## Definition of done
 

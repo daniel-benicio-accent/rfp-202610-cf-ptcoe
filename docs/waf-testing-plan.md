@@ -19,13 +19,21 @@ written into the repository.
 > cases are left to the delivery team's discretion to pursue full coverage, and
 > are not part of the committed demo scope.
 
+> **Note:** since **29 October 2026** the committed tests are credited to the
+> **Cloudflare Managed Ruleset**, deployed at the tenant level with every rule
+> blocking. "Managed Rules — XSS Protection" and "LFI Protection" are no longer
+> available, and the whole managed ruleset was the only managed deployment that
+> worked in the PoC. The **Cloudflare OWASP Core Ruleset** stays at zone level
+> as the second layer: disable the managed ruleset and the same requests are
+> credited to OWASP. See [spec 0004](../specs/0004-waf/spec.md).
+
 ## Status at a glance
 
 | # | Test | OWASP 2025 | Endpoint | Cloudflare control | Expected (WAF on) | Scope |
 | - | ---- | ---------- | -------- | ------------------ | ----------------- | ----- |
-| 1.1 | SQL Injection | Injection | `POST /rest/user/login` | OWASP Core Ruleset | Blocked (403) | **Committed** |
-| 1.2 | Cross-Site Scripting | Injection | `GET /rest/products/search` | Managed Rules — XSS | Blocked (403) | **Committed** |
-| 1.3 | Path / Directory Traversal | Broken Access Control | `GET /ftp` | Managed Rules — LFI | Blocked (403) | **Committed** |
+| 1.1 | SQL Injection | Injection | `POST /rest/user/login` | Cloudflare Managed Ruleset (tenant) | Blocked (403) | **Committed** |
+| 1.2 | Cross-Site Scripting | Injection | `GET /rest/products/search` | Cloudflare Managed Ruleset (tenant) | Blocked (403) | **Committed** |
+| 1.3 | Path / Directory Traversal | Broken Access Control | `GET /ftp` | Cloudflare Managed Ruleset (tenant) | Blocked (403) | **Committed** |
 | ~~1.4~~ | ~~Broken Access Control (A01)~~ | ~~A01:2025~~ | ~~`GET /rest/admin/application-configuration`~~ | ~~Core Ruleset (forced browsing)~~ | ~~Blocked / challenged~~ | ~~Deprioritized~~ |
 | ~~1.5~~ | ~~Security Misconfiguration (A02)~~ | ~~A02:2025~~ | ~~`GET /.env`, `GET /server.js`~~ | ~~Exposed credentials / bad extensions~~ | ~~Blocked (403)~~ | ~~Deprioritized~~ |
 | ~~1.6~~ | ~~Software Supply Chain (A03)~~ | ~~A03:2025~~ | ~~`GET /api/dependencies`~~ | ~~Core Ruleset / virtual patching~~ | ~~Blocked (403)~~ | ~~Deprioritized~~ |
@@ -52,7 +60,8 @@ host. An application error (for example a `401` from Juice Shop's own login) is
 
 - **Business value:** prevents account compromise and unauthorized data access.
 - **Endpoint:** `POST /rest/user/login`
-- **Cloudflare control:** Cloudflare OWASP Core Ruleset.
+- **Cloudflare control:** Cloudflare Managed Ruleset (tenant level); the
+  Cloudflare OWASP Core Ruleset when the managed ruleset is disabled.
 - **Bruno request:** `1.1. SQL Injection (SQLi) - Primary Test`.
 - **Payload (JSON body):**
 
@@ -65,8 +74,9 @@ host. An application error (for example a `401` from Juice Shop's own login) is
   baseline: the application is genuinely vulnerable, so the block afterwards is
   meaningful.
 - **Expected (WAF on):** **blocked (403)** with a `cf-ray`; the request never
-  reaches the origin. Security Events attributes it to the **Cloudflare OWASP
-  Core Ruleset** with the anomaly score reached.
+  reaches the origin. Security Events attributes it to the **Cloudflare Managed
+  Ruleset**. With the managed ruleset disabled, the same request is attributed
+  to the **Cloudflare OWASP Core Ruleset** with the anomaly score reached.
 - **Note:** the body must actually be sent as JSON. A request with no body
   returns the origin's generic `401 "Invalid email or password."`, which is an
   application response, not a WAF block — confirm the body is present before
@@ -76,30 +86,28 @@ host. An application error (for example a `401` from Juice Shop's own login) is
 
 - **Business value:** prevents session hijacking and browser-based attacks.
 - **Endpoint:** `GET /rest/products/search`
-- **Cloudflare control:** Managed Rules — XSS Protection (the `xss`-tagged rules
-  of the Cloudflare Managed Ruleset).
+- **Cloudflare control:** Cloudflare Managed Ruleset (tenant level).
 - **Bruno request:** `1.2. Cross-Site Scripting (XSS) - Primary Test`.
 - **Payload (query parameter):** `q=<script>alert(1)</script>`
 - **Baseline (WAF off):** `200 OK`; the request reaches the search endpoint.
 - **Expected (WAF on):** **blocked (403)** with a `cf-ray`; Security Events
-  attributes it to the Cloudflare Managed Ruleset XSS rule.
+  attributes it to an XSS rule of the Cloudflare Managed Ruleset.
 
 ### 1.3. Path / Directory Traversal
 
 - **Business value:** prevents unauthorized file and system access.
 - **Endpoint:** `GET /ftp`
-- **Cloudflare control:** Managed Rules — LFI Protection (the `lfi`-tagged rules
-  of the Cloudflare Managed Ruleset).
+- **Cloudflare control:** Cloudflare Managed Ruleset (tenant level).
 - **Bruno request:** `1.3. Path - Directory Traversal - Primary Test`.
 - **Payload (URL path):** `/ftp/../../../../etc/passwd`
 - **Baseline (WAF off):** reaches the origin (`200`). To make the baseline
   actually return file contents rather than the SPA index, use **URL-encoded**
   traversal (`/ftp/%2e%2e%2f%2e%2e%2f%2e%2e%2f%2e%2e%2fetc%2fpasswd`): HTTP
   clients collapse a literal `../` before the request leaves, and Juice Shop
-  filters the plain form. The encoded form is what the LFI rule is there to
-  catch.
+  filters the plain form. The encoded form is what the managed ruleset's
+  traversal rules are there to catch.
 - **Expected (WAF on):** **blocked (403)** with a `cf-ray`; Security Events
-  attributes it to the Cloudflare Managed Ruleset LFI rule.
+  attributes it to a traversal/LFI rule of the Cloudflare Managed Ruleset.
 
 ## 1.4–1.12. Extended OWASP Top 10:2025 coverage — deprioritized
 

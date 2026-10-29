@@ -1,28 +1,39 @@
 output "enabled" {
-  description = "Whether the WAF is currently switched on."
+  description = "Whether the WAF switch is on."
   value       = var.enable_waf
 }
 
-output "ruleset_id" {
-  description = "Ruleset ID, or null when the WAF is off."
-  value       = try(cloudflare_ruleset.waf[0].id, null)
+output "tenant_ruleset_id" {
+  description = "ID of the account entry point ruleset that holds the Cloudflare Managed Ruleset."
+  value       = cloudflare_ruleset.tenant_managed.id
+}
+
+output "zone_ruleset_id" {
+  description = "ID of the zone entry point ruleset that holds the OWASP Core Ruleset."
+  value       = cloudflare_ruleset.zone_owasp.id
+}
+
+output "cloudflare_managed_ruleset" {
+  description = "Tenant-level Cloudflare Managed Ruleset as deployed. enabled is the effective state of its rule."
+  value = {
+    enabled    = local.managed_enabled
+    account_id = local.account_id
+    expression = local.managed_expression
+    action     = var.managed_rules_action
+  }
 }
 
 output "owasp_core_ruleset" {
-  description = "OWASP Core Ruleset settings as deployed, or null when the WAF is off."
-  value = var.enable_waf ? {
+  description = "Zone-level OWASP Core Ruleset as deployed. enabled is the effective state of its rule."
+  value = {
+    enabled         = local.owasp_enabled
     paranoia_level  = var.owasp_paranoia_level
     score_threshold = var.owasp_score_threshold
     action          = var.owasp_action
-  } : null
-}
-
-output "managed_protections" {
-  description = "Managed Rules protections in force, by requirement name, with the Cloudflare Managed Ruleset tag each one maps to. Empty when the WAF is off."
-  value       = var.enable_waf ? local.managed_enabled : {}
+  }
 }
 
 output "verify_command" {
-  description = "Reads the live ruleset back from the Cloudflare API: one line per rule, in evaluation order. Needs jq."
-  value       = "curl -s -H \"Authorization: Bearer $CLOUDFLARE_API_TOKEN\" https://api.cloudflare.com/client/v4/zones/${var.zone_id}/rulesets/phases/http_request_firewall_managed/entrypoint | jq -r '.result.rules[] | [.enabled, .action_parameters.id, .description] | @tsv'"
+  description = "Reads both entry points back from the Cloudflare API: one line per rule, in evaluation order (account first, then zone). Needs jq."
+  value       = "for scope in accounts/${local.account_id} zones/${var.zone_id}; do curl -s -H \"Authorization: Bearer $CLOUDFLARE_API_TOKEN\" \"https://api.cloudflare.com/client/v4/$scope/rulesets/phases/http_request_firewall_managed/entrypoint\" | jq -r --arg scope \"$${scope%%/*}\" '.result.rules[] | [$scope, .enabled, .action_parameters.id, .description] | @tsv'; done"
 }

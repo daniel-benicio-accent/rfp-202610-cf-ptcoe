@@ -42,6 +42,8 @@ Inputs, outputs, contracts, schemas. External systems touched.
 
 How each acceptance criterion in `spec.md` gets verified.
 
-## Rollout
+## Rollout notes
 
-Steps to stand the component up from a clean checkout.
+Tips for demonstrating the feature, and the steps to stand it up from a clean
+checkout. Required before the feature leaves `Draft`: at least one note, or the
+standard disclaimer in [docs/spec-workflow.md](../../docs/spec-workflow.md#rollout-notes).

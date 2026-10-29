@@ -1,51 +1,56 @@
 variable "zone_id" {
-  description = "Cloudflare zone ID for the demo domain."
+  description = "Cloudflare zone ID for the demo domain. Also identifies the tenant (account) unless account_id is set."
   type        = string
 }
 
 variable "hostname" {
-  description = "Public hostname the WAF applies to. Every rule is scoped to it."
+  description = "Public hostname the zone-level OWASP rule applies to."
   type        = string
+}
+
+variable "account_id" {
+  description = "Cloudflare account (tenant) whose entry point holds the managed ruleset. Null uses the account that owns zone_id."
+  type        = string
+  default     = null
 }
 
 variable "enable_waf" {
   description = <<-EOT
     The WAF switch. Off by default so the demo can show the baseline first,
-    then switch it on and repeat the same requests.
+    then switch it on and repeat the same requests. Off disables both rules
+    in place; it never deletes a ruleset.
   EOT
   type        = bool
   default     = false
 }
 
-variable "enable_xss_protection" {
-  description = "Managed Rules — XSS Protection: the Cloudflare Managed Ruleset's XSS rules."
+variable "enable_cloudflare_managed_ruleset" {
+  description = "Tenant-level Cloudflare Managed Ruleset, while enable_waf is on. false disables its rule; the ruleset stays deployed."
   type        = bool
   default     = true
 }
 
-variable "enable_lfi_protection" {
-  description = "Managed Rules — LFI Protection: the Cloudflare Managed Ruleset's local file inclusion rules."
+variable "enable_owasp_core_ruleset" {
+  description = "Zone-level Cloudflare OWASP Core Ruleset, while enable_waf is on. false disables its rule; the ruleset stays deployed."
   type        = bool
   default     = true
 }
 
-variable "xss_category" {
-  description = "Tag that marks XSS rules in the Cloudflare Managed Ruleset. The plan checks it against the live ruleset and suggests the right one if it is wrong."
-  type        = string
-  default     = "xss"
-}
-
-variable "lfi_category" {
-  description = "Tag that marks LFI rules in the Cloudflare Managed Ruleset. Checked the same way as xss_category."
-  type        = string
-  default     = "lfi"
+variable "managed_ruleset_zones" {
+  description = <<-EOT
+    Zone names the tenant-level managed ruleset applies to. Empty means every
+    Enterprise zone in the account, which in a shared tenant includes zones
+    that are not part of this demo.
+  EOT
+  type        = list(string)
+  default     = []
 }
 
 variable "managed_rules_action" {
   description = <<-EOT
-    Action for the XSS and LFI rules. Set explicitly because switching a tag
-    on also switches on rules Cloudflare ships disabled or in log mode, and
-    "protection" should mean they act.
+    Action for every rule in the Cloudflare Managed Ruleset. block by
+    decision; the other values are there for the challenge-versus-block
+    conversation, not for the committed demo.
   EOT
   type        = string
   default     = "block"

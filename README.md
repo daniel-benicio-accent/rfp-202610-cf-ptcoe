@@ -46,7 +46,7 @@ Internet
 └──────────────────────────────────────────────┘
    │
    ▼
-Application (Web / API)   — Cloud Run + Firestore on GCP
+Application (Web / API)   — Cloud Run + Firestore on GCP today; Azure EBC tenant as target
 ```
 
 > **Note:** Currently all we have are some codes and a PoC running in a personal lab on GCP and personal domain over CoE's Cloudflare NFR tenant. Check specs Readme for the status on move into Azure EBC tenant and domain pt-accenture.cftenant.com .  
@@ -69,11 +69,11 @@ reused is reimplemented here as tracked code.
 | --- | --- | --- |
 | Cloudflare plan | Enterprise, with the Bot Management add-on | Bot score, verified-bot detection and bot analytics are all available, so `0002` is specified against the full product rather than Super Bot Fight Mode. |
 | Origin lockdown | Shared-secret header injected at the edge, checked by the origin | Keeps idle cost at zero and needs no always-on load balancer. **Demo-grade on purpose** — the production recommendation is Cloud Armor allowlisting Cloudflare's ranges, and the demo narrative must say so. |
+| Target environment | Azure EBC tenant, domain `pt-accenture.cftenant.com` (29 Oct 2026) | The labs still run in a personal GCP/Cloudflare environment, for building and rehearsal. Spec `0001` tracks the move. |
 
-Still open and blocking: **which domain hosts the demo, and is it delegated to
-Cloudflare?** Nothing downstream can start without a zone. The labs currently
-run in a personal Cloudflare/GCP environment; moving them to the target **Azure
-EBC** environment is pending and tracked per spec.
+Still open and blocking on the target: **is `pt-accenture.cftenant.com` active
+on Cloudflare, and in which account?** Nothing can move to the target until the
+zone exists. Which Azure services replace the GCP origin is also still open.
 
 ## Repository map
 
