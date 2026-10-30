@@ -10,9 +10,9 @@
 
 ## Summary
 
-Show that Cloudflare distinguishes automated traffic from a real person in front
-of the demo application, and that the chosen mitigation stops the bot while the
-browser is unaffected.
+Show that Cloudflare distinguishes automated traffic from an ordinary browser
+on the demo application. A bounded simulator exercises six synthetic bot-abuse
+scenarios without real credentials or form submissions.
 
 ## Context
 
@@ -39,11 +39,14 @@ can simply be retried against the origin URL.
   that verification is not based on the user agent.
 - The effect is quantified: requests sent versus requests that reached origin.
 - The mitigation is expressed as code, reviewable and toggleable.
+- Six synthetic scenarios can be exercised: brute force, malicious scraping,
+  spam bots, automated form abuse, account takeover and credential stuffing.
 
 ## Non-goals
 
 - Tuning detection thresholds for a production traffic profile.
-- Protecting a login or checkout flow. The demo app has neither.
+- Real authentication or credential validation. The synthetic login endpoint
+  always rejects and never reads or stores credentials.
 - Credential stuffing or carding scenarios — related, but separate stories.
 - Rate-based mitigation. That is `0003`; keeping them apart is what makes each
   one legible on its own.
@@ -78,6 +81,13 @@ can simply be retried against the origin URL.
 - **Then** the edge absorbs it, the origin counter stays flat, and the load
   generator's own metrics show what was sent
 
+**S-5 — Bounded synthetic scenarios run**
+
+- **Given** the authorized demo hostname is configured
+- **When** the presenter runs one simulator scenario
+- **Then** it sends no more than ten sequential requests, at least 0.5 seconds apart
+- **And** it sends no credentials or form content and does not follow redirects
+
 ## Functional requirements
 
 | ID | Requirement | Scenario |
@@ -92,6 +102,7 @@ can simply be retried against the origin URL.
 | FR-8 | Sent-versus-arrived counts are readable for a demo window. | S-1, S-4 |
 | FR-9 | Mitigation is driven by the Cloudflare bot score against a configurable threshold — not by matching user-agent strings. | S-1, S-3 |
 | FR-10 | Bot analytics show the score distribution for the demo window, so the audience sees classification rather than just a verdict. | S-4 |
+| FR-11 | A containerized simulator exercises the six synthetic scenarios on one configured HTTPS hostname, with a ten-request cap and no credentials. | S-5 |
 
 ## Non-functional requirements
 
@@ -112,6 +123,9 @@ can simply be retried against the origin URL.
 - [ ] Enabling and disabling the feature is a single toggle with no origin changes in the plan.
 - [ ] The rule matches on bot score, and changing the threshold changes what is mitigated.
 - [ ] Bot analytics for the demo window show the score distribution.
+- [ ] Each synthetic scenario reaches its corresponding app route and counter.
+- [ ] The simulator enforces hostname, request-count, sequential and interval limits.
+- [ ] No credential or form content is sent or retained.
 
 ## Open questions
 

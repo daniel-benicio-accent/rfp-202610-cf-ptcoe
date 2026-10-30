@@ -297,7 +297,7 @@ entries are templates; each demo gets its own rendered copy.
 | [scripts/project-verify.sh](scripts/project-verify.sh) | [0001](specs/0001-platform-foundation/spec.md) | Read-only check of a demo's resources and live behaviour. | Working, exercised against a real deployment. |
 | [scripts/project-nuke.sh](scripts/project-nuke.sh) | [0001](specs/0001-platform-foundation/spec.md) | Teardown: inventory, audit upload, ordered destroy. | Working. Ordering and skip logic tested; cloud calls not yet exercised. |
 | [src/app/](src/app/) | [0001](specs/0001-platform-foundation/spec.md) | Flask whiteboard: browser UI plus REST API, edge-secret check (FR-7), arrival counter (FR-9). | Deployed and verified on Cloud Run: direct requests get 403, header requests get 200. |
-| `src/load-generator/` | [0001](specs/0001-platform-foundation/spec.md) | Vegeta-based traffic and bot simulator with Prometheus metrics. | Not started. |
+| [src/load-generator/](src/load-generator/) | [0002](specs/0002-bot-management/spec.md) | Bounded, one-shot container CLI for six synthetic Bot Management scenarios. | Implemented; local unit tests available. |
 
 ## Conventions
 
