@@ -10,6 +10,7 @@ operator   = "user:daniel.benicio@opsylab.com.br"
 # org_id    = ""
 # folder_id = ""
 
-# Flip to true once Cloudflare is serving the hostname. See
-# docs/wafdemo-owasp-juice-shop.md, step 4.
-lock_origin_to_cloudflare = false
+# On: 80 and 443 accept only Cloudflare's ranges, so the WAF cannot be
+# bypassed by going to the VM's IP. Set false only to test the origin directly.
+# See docs/wafdemo-owasp-juice-shop.md, step 3 ("close the side door").
+lock_origin_to_cloudflare = true
