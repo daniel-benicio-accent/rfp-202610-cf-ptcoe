@@ -10,9 +10,9 @@
 
 ## Summary
 
-Show that Cloudflare distinguishes automated traffic from a real person in front
-of the demo application, and that the chosen mitigation stops the bot while the
-browser is unaffected.
+Show that Cloudflare distinguishes automated traffic from an ordinary browser
+on the demo application. A bounded simulator exercises six synthetic bot-abuse
+scenarios without real credentials or form submissions.
 
 ## Context
 
@@ -65,6 +65,8 @@ in here (see Non-goals).
   that verification is not based on the user agent.
 - The effect is quantified: requests sent versus requests that reached origin.
 - The mitigation is expressed as code, reviewable and toggleable.
+- Six synthetic scenarios can be exercised: brute force, malicious scraping,
+  spam bots, automated form abuse, account takeover and credential stuffing.
 
 ## Non-goals
 

@@ -286,6 +286,22 @@ module keeps its own state, nothing enforces the order for you.
 The audit bucket itself is created outside Terraform and survives teardown, so
 the record of what existed outlives the demo.
 
+## Components
+
+Listed as they land, each linked to the spec it implements. The Terraform
+entries are templates; each demo gets its own rendered copy.
+
+| Component | Spec | What it is | State |
+| --- | --- | --- | --- |
+| [terraform/_templates/gcp/](src/terraform/_templates/gcp/) | [0001](specs/0001-platform-foundation/spec.md) | Origin: Cloud Run, Firestore, Artifact Registry, Cloud Build, audit log sink. | Written, schema-validated against the google provider. |
+| [terraform/_templates/zone/](src/terraform/_templates/zone/) | [0001](specs/0001-platform-foundation/spec.md) | Proxied record, Host header rewrite, edge secret injection. | Written, schema-validated against cloudflare 5.28.1. TLS mode still a TODO. |
+| [terraform/_templates/feature/](src/terraform/_templates/feature/) | [0002](specs/0002-bot-management/spec.md) onward | Generic edge-feature module behind an `enable_<feature>` toggle. | Skeleton. Phase and match expression are per-feature TODOs. |
+| [scripts/bootstrap-terraform.sh](scripts/bootstrap-terraform.sh) | [0001](specs/0001-platform-foundation/spec.md) | Wizard that renders a complete demo into `demos/<name>/`, and creates the audit bucket. | Working. IAM pre-flight still open — see `0001` task 6b. |
+| [scripts/project-verify.sh](scripts/project-verify.sh) | [0001](specs/0001-platform-foundation/spec.md) | Read-only check of a demo's resources and live behaviour. | Working, exercised against a real deployment. |
+| [scripts/project-nuke.sh](scripts/project-nuke.sh) | [0001](specs/0001-platform-foundation/spec.md) | Teardown: inventory, audit upload, ordered destroy. | Working. Ordering and skip logic tested; cloud calls not yet exercised. |
+| [src/app/](src/app/) | [0001](specs/0001-platform-foundation/spec.md) | Flask whiteboard: browser UI plus REST API, edge-secret check (FR-7), arrival counter (FR-9). | Deployed and verified on Cloud Run: direct requests get 403, header requests get 200. |
+| [src/load-generator/](src/load-generator/) | [0002](specs/0002-bot-management/spec.md) | Bounded, one-shot container CLI for six synthetic Bot Management scenarios. | Implemented; local unit tests available. |
+
 ## Conventions
 
 Everything written here — specs, docs, code, comments, commit messages — is in

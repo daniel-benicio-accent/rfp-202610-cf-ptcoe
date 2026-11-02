@@ -18,6 +18,10 @@ from a variable so FR-6 is a value change rather than a rewrite. Verified bots
 are excluded from the match so the rule expresses "automated and not a crawler
 we trust" rather than "automated".
 
+A separate bounded CLI container exercises six synthetic scenarios against
+the app's login, catalogue and form routes without sending credentials or form
+data.
+
 Matching on score rather than user agent is the point of the feature, not an
 implementation detail — it is what makes S-3 work. A spoofed `Googlebot` scores
 as automated because Cloudflare verifies crawlers by network identity, so the
@@ -37,7 +41,7 @@ configuration. The demo should show that as one rule, not two.
 | Component | Path | Responsibility |
 | --------- | ---- | -------------- |
 | Bot module | `demos/<name>/terraform/cloudflare/bot-management/` | The score-based rule, behind `enable_bot_management`. Threshold and action are variables. Rendered from `src/terraform/_templates/feature/`. |
-| Bot simulator | `src/load-generator/` | Scripted client for S-1, volume source for S-4. Ported from the MVP. |
+| Bot simulator | `src/load-generator/` | One-shot container CLI for six named scenarios; at most ten sequential requests per run. |
 | Origin counter | `src/app/` | Arrival count for FR-8. Delivered by `0001` task 10. |
 
 ## Interfaces and data
@@ -47,6 +51,8 @@ configuration. The demo should show that as one rule, not two.
 - Evidence per demo window: requests sent (load generator), requests arrived
   (origin counter), mitigated requests and matched rule (Cloudflare event log),
   score distribution (bot analytics).
+- Simulator inputs: one scenario and a configured HTTPS hostname; no arbitrary
+  URL, credentials, form content, concurrency or redirects.
 
 ## Risks
 
@@ -56,6 +62,7 @@ configuration. The demo should show that as one rule, not two.
 | Managed challenge renders as a browser page, so `curl` sees HTML rather than a clean refusal | Terminal evidence reads as ambiguous | Use `block` for the terminal sequence; show `managed_challenge` in the browser. Both are available from the same variable. |
 | Threshold chosen without thought invites a false-positive question we cannot answer | Credibility in the room | Pick the threshold deliberately and be ready to show the score distribution behind it. |
 | Cloudflare provider v5 restructured the ruleset resources | Lost time on resource naming | Pin the provider and work from the v5 docs, not v4 examples. |
+| Bot score is mistaken for rate limiting or account security | Repeated login attempts or account takeover remain possible | Use spec `0003` for rate limits and identity controls such as MFA for real accounts. |
 
 ## Test and demo strategy
 
