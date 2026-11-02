@@ -3,11 +3,17 @@
 > Draft proposal. The approach below (GCP, OpenTofu, the bootstrap/nuke script
 > pair) was set by the project owner, so it is recorded here ahead of spec
 > approval. Nothing is built until `spec.md` reaches `Approved`.
+>
+> **Target moved, 29 October 2026:** the client demo runs in the Azure EBC
+> tenant under `pt-accenture.cftenant.com`. Everything below describes the GCP
+> implementation the lab runs on, which is the reference for the Azure port.
+> The Azure design is written once the spec's open question on Azure services
+> is answered.
 
 | Field   | Value |
 | ------- | ----- |
 | Status  | Draft |
-| Updated | 2026-10-21 |
+| Updated | 2026-10-29 |
 
 ## Approach
 
@@ -113,7 +119,8 @@ envs/                           gitignored: per-environment config and local sta
 
 | Risk | Impact | Mitigation |
 | ---- | ------ | ---------- |
-| No Cloudflare zone available, or nameservers not delegated | Blocks the entire backlog | **The one remaining open question.** Resolve before anything else; everything downstream waits on it. |
+| Target zone `pt-accenture.cftenant.com` not yet active on Cloudflare, or held in an unexpected account | Blocks the whole backlog on the target | Domain decided 2026-10-29; confirm the zone's status, account and plan before anything else. Everything downstream waits on it. |
+| The Azure port is not ready by the demo date | The demo would have to run on the personal lab and domain, which is not where the client should see it | Track it as the backlog task. Port the origin first; edge features follow the zone. |
 | The edge secret leaks, or is reused across environments | A "bypass is impossible" claim is falsified mid-demo | Generate per environment, keep it in the operator's environment only, rotate by re-applying. Do not screen-share the Cloud Run environment variables. |
 | Audience reads the header control as our production recommendation | Credibility damage in a security bid | State the production pattern explicitly in both the demo narrative and the RFP text. |
 | GCP IAM propagation flakiness | Bootstrap fails intermittently | Carry over the `time_sleep` waits unchanged. They exist for exactly this reason. |
@@ -130,12 +137,24 @@ envs/                           gitignored: per-environment config and local sta
 | Feature toggle | `tofu apply -target=module.<feature>` with `enable_<feature>` flipped; the plan shows no replacement of origin resources |
 | Clean teardown | `gcloud run services list` and friends return empty; the inventory object exists in the bucket |
 
-## Rollout
+## Rollout notes
 
-1. Resolve the zone question and confirm the Bot Management add-on is live on that zone.
+Stand-up order:
+
+1. Confirm `pt-accenture.cftenant.com` is active on Cloudflare, which account
+   holds it, and that the Bot Management add-on is live on that zone.
 2. Reimplement the app and the GCP Terraform under `src/` as tracked files.
 3. Add the GCP pre-flight to the wizard (task 6b); the rendering half is done.
 4. Add the Cloudflare zone module and prove FR-5.
 5. Add the transform rule and the origin-side header check; prove the bypass is refused.
 6. Port the load generator; prove FR-8 and FR-9.
 7. Full bootstrap, demo and teardown rehearsal on a throwaway project.
+8. Port the origin to the Azure EBC tenant, then repeat 4–7 under
+   `pt-accenture.cftenant.com`.
+
+Demo notes:
+
+- Show the client the target tenant and domain only. The personal lab is for
+  building and rehearsal.
+- When showing the bypass refused (S-3), say out loud that the shared-secret
+  header is demo-grade, and name the production pattern.

@@ -18,6 +18,20 @@ The project is **spec-driven**: specifications are the source of truth and code
 is written to satisfy them, never the other way around. Nothing gets built
 before its spec is approved.
 
+## Contents
+
+- [What the demo shows](#what-the-demo-shows)
+- [Key decisions](#key-decisions)
+- [Repository map](#repository-map)
+  - [Source layout](#source-layout)
+- [Quick start](#quick-start)
+  - [Start a new piece of work](#start-a-new-piece-of-work)
+  - [Create a demo](#create-a-demo)
+  - [Apply a demo](#apply-a-demo)
+  - [Verify a demo](#verify-a-demo)
+  - [Destroy a demo](#destroy-a-demo)
+- [Conventions](#conventions)
+
 ## What the demo shows
 
 ```
@@ -32,12 +46,15 @@ Internet
 └──────────────────────────────────────────────┘
    │
    ▼
-Application (Web / API)   — Cloud Run + Firestore on GCP
+Application (Web / API)   — Cloud Run + Firestore on GCP today; Azure EBC tenant as target
 ```
+
+> **Note:** Currently all we have are some codes and a PoC running in a personal lab on GCP and personal domain over CoE's Cloudflare NFR tenant. Check specs Readme for the status on move into Azure EBC tenant and domain pt-accenture.cftenant.com .  
 
 Each of the five edge capabilities is a separate feature with its own
 specification, demonstrated independently: same request, accepted before and
-refused after, with a reason attached.
+refused after, with a reason attached. Which ones are in scope, in what order,
+and how far each has got: [specs/README.md](specs/README.md#prioritized-backlog).
 
 The origin, the environment lifecycle and the traffic simulator build on
 **MyCapAct**, an earlier CoE lab-platform MVP that was used to kickstart this
@@ -46,40 +63,23 @@ contributed is recorded in
 [docs/inherited-from-capact.md](docs/inherited-from-capact.md), and anything
 reused is reimplemented here as tracked code.
 
-## Backlog
-
-Bot management first, by owner decision. The rest are ordered by effort against
-demo value — cheapest convincing demo next.
-
-| # | Spec | Feature | Effort | Demo value | Why here |
-| - | ---- | ------- | ------ | ---------- | -------- |
-| 1 | [0002](specs/0002-bot-management/spec.md) | **Bot management** | Medium | High | Owner priority. Also the best-understood of the five — the CapAct MVP's first lab was "Cloudflare Bot Handling", so the origin shape and the bot simulation method are already proven. |
-| 2 | 0003 | **Rate limiting** | Low | High | One ruleset resource. The load generator we already have makes the before/after obvious and quantifiable. |
-| 3 | 0004 | **WAF** | Low–medium | High | Managed rulesets plus a custom rule. A single SQLi payload demonstrates it; core to any Cloudflare bid. |
-| 4 | 0005 | **DDoS protection** | Low to configure, high to demo | Medium | Managed rulesets are largely on by default, so configuration is trivial — but a real volumetric attack cannot be launched, so the demo is mostly dashboard narration. Value is in the RFP answer more than the live show. |
-| 5 | 0006 | **API security** | High | High | API Shield is available on our tier, but it still needs an OpenAPI schema, endpoint discovery and schema validation to show anything. Highest effort of the five. |
-
-All five depend on **[0001 Platform foundation](specs/0001-platform-foundation/spec.md)**,
-which delivers the origin, the proxied hostname, the load generator and the
-origin lockdown that stops the edge being bypassed.
-
-Status for every spec: [specs/README.md](specs/README.md).
-
-### Decisions taken
+## Key decisions
 
 | Decision | Value | Consequence |
 | --- | --- | --- |
 | Cloudflare plan | Enterprise, with the Bot Management add-on | Bot score, verified-bot detection and bot analytics are all available, so `0002` is specified against the full product rather than Super Bot Fight Mode. |
 | Origin lockdown | Shared-secret header injected at the edge, checked by the origin | Keeps idle cost at zero and needs no always-on load balancer. **Demo-grade on purpose** — the production recommendation is Cloud Armor allowlisting Cloudflare's ranges, and the demo narrative must say so. |
+| Target environment | Azure EBC tenant, domain `pt-accenture.cftenant.com` (29 Oct 2026) | The labs still run in a personal GCP/Cloudflare environment, for building and rehearsal. Spec `0001` tracks the move. |
 
-Still open and blocking: **which domain hosts the demo, and is it delegated to
-Cloudflare?** Nothing downstream can start without a zone.
+Still open and blocking on the target: **is `pt-accenture.cftenant.com` active
+on Cloudflare, and in which account?** Nothing can move to the target until the
+zone exists. Which Azure services replace the GCP origin is also still open.
 
 ## Repository map
 
 | Path | What lives here |
 | --- | --- |
-| [specs/README.md](specs/README.md) | Index and status of every specification. **Start here.** |
+| [specs/README.md](specs/README.md) | Backlog, index and status of every specification, and the components that implement each. **Start here.** |
 | [specs/](specs/) | One folder per feature: `NNNN-slug/` with `spec.md`, `plan.md`, `tasks.md`. |
 | [specs/_templates/](specs/_templates/) | Templates the spec scaffolder copies from. |
 | [src/terraform/_templates/](src/terraform/_templates/) | The only Terraform kept in the repo. Everything else is rendered per demo. |
@@ -89,6 +89,8 @@ Cloudflare?** Nothing downstream can start without a zone.
 | [docs/conventions.md](docs/conventions.md) | Working agreements: language, naming, documentation, AI tooling, secrets. |
 | [docs/prerequisites.md](docs/prerequisites.md) | Workstation setup: WSL, OpenTofu, `gcloud`, and the environment variables. |
 | [docs/created-objects.md](docs/created-objects.md) | Checklist of every object a demo creates, for walking the consoles by hand. |
+| [docs/wafdemo-owasp-juice-shop.md](docs/wafdemo-owasp-juice-shop.md) | Runbook for the hand-written WAF demo: Juice Shop on a GCE VM behind Cloudflare. |
+| [docs/waf-testing-plan.md](docs/waf-testing-plan.md) | WAF test cases mapped to the OWASP Top 10:2025, with deprioritized items struck through. Backs spec [0004](specs/0004-waf/spec.md). |
 | [docs/inherited-from-capact.md](docs/inherited-from-capact.md) | What the CapAct MVP contributed to this work, and why. History, not a dependency. |
 
 This file and [specs/README.md](specs/README.md) are the only two READMEs in the
@@ -169,7 +171,8 @@ Then:
 2. Register it in [specs/README.md](specs/README.md).
 3. Get it reviewed and set `Status: Approved`.
 4. Write `plan.md` and `tasks.md`.
-5. Build under `src/<component>/`, and add the component to the table below.
+5. Build under `src/<component>/`, and list the component in its spec's row in
+   [specs/README.md](specs/README.md).
 
 ### Create a demo
 
