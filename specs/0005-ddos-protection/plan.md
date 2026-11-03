@@ -113,7 +113,7 @@ stops the application (replicas `0`) and is the way to force the pods to re-read
 the `<release>-env` ConfigMap after any change to `papa`/`tango`:
 
 ```bash
-gcloud config set project rfp-202610-demohping
+gcloud config set project rfp-202610-demohpingkali
 kubectl scale deploy --replicas=0 hping -n web
 kubectl scale deploy --replicas=1 hping -n web
 ```
@@ -130,12 +130,53 @@ kubectl scale deploy --replicas=1 hping -n web
   `hping_min_replicas` (above) for a change that sticks. Scaling to `0` is the
   exception: the HPA does not scale a Deployment back up from `0`.
 
+### Raise a Compute Engine quota when scale-up stalls
+
+If the fleet stops growing before it reaches the requested node count, the
+cluster autoscaler is almost always blocked on a Compute Engine quota — C4A
+vCPUs, in-use external IPs, or Hyperdisk Balanced capacity. Two steps.
+
+**1. Confirm it is a quota, and which one.** Read the autoscaler's events (these
+need cluster credentials — see
+[Inspect the cluster](#inspect-the-cluster-and-the-source-pods) below to fetch
+them):
+
+```bash
+kubectl get events -A --sort-by=.lastTimestamp \
+  | grep -Ei 'FailedScaleUp|quota|Insufficient'
+
+kubectl -n kube-system describe configmap cluster-autoscaler-status
+```
+
+Look for `scale.up.error.quota.exceeded` or a `GCE quota exceeded` line — that
+names the quota capping the fleet.
+
+**2. File the increase.**
+[`request_gke_quotas.sh`](../../demos/demohpingkali/request_gke_quotas.sh), in
+the demo root, files one Cloud Quotas request per quota needed to scale the node
+pool to `TARGET_NODES` (default 20). It only requests an increase where the
+current limit is below what is required — it never lowers an existing quota, and
+re-running it is safe. It needs `gcloud` with the `beta` component, `jq`, and
+`roles/cloudquotas.admin`.
+
+```bash
+cd demos/demohpingkali
+
+./request_gke_quotas.sh                  # dry run: shows what it would request
+DRY_RUN=false ./request_gke_quotas.sh    # submit the requests
+./request_gke_quotas.sh status           # granted / pending, once submitted
+```
+
+Run the dry run first and read it; submit only once it lists the quotas and
+values you expect. Approval is on Google's side, so the fleet scales past the
+old limit only after the requests are granted.
+
 ### Inspect the cluster and the source pods
 
 ```bash
-gcloud config set project rfp-202610-demohping
+gcloud config set project rfp-202610-demohpingkali
 
-gcloud container clusters get-credentials demohping-gke --region=us-east1
+gcloud container clusters get-credentials demohpingkali-gke --region=us-east1
 kubectl get nodes -o wide        # the EXTERNAL-IP column is each node's public IP
 
 for p in $(kubectl -n web get pods -l app=hping -o name); do echo $p && kubectl exec -it $p -n web -- sh -c "env | grep -E '^(tango|papa)='"; done
