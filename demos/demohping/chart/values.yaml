@@ -1,0 +1,44 @@
+# terraform/gcp/app.tf sets image, replicas and chartHash from the module's
+# variables. The defaults here are what `helm template` renders on its own.
+
+image: docker.io/library/nginx:alpine
+
+replicas:
+  min: 1
+  max: 20
+  # Percentage of the hping container's CPU request, not the pod's: the HPA
+  # measures the hping container alone, so the sidecar does not dilute it.
+  cpuTargetPercent: 60
+
+# A small request is what makes scaling visible: the HPA works from
+# utilisation of the request, and a static page uses very little CPU.
+resources:
+  requests:
+    cpu: 50m
+    memory: 32Mi
+  limits:
+    memory: 128Mi
+
+# Set by Terraform from the node machine type: kubernetes.io/arch pinned to
+# arm64 or amd64, plus a toleration for GKE's Arm node taint.
+nodeSelector: {}
+tolerations: []
+
+gateway:
+  # Matches the pods of the "istio-ingressgateway" release in istio.tf.
+  selector:
+    istio: ingressgateway
+  # Any Host header, so the page answers on a bare node IP. Narrow it to the
+  # real hostname once there is one.
+  hosts:
+    - "*"
+
+# Environment variables of the hping container, through the <release>-env
+# ConfigMap. ConfigMap values are strings, so numbers are quoted.
+env:
+  tango: "1111"
+  papa: "11"
+
+# Set by Terraform so that edits to this chart show up in a plan. Unused by
+# the templates.
+chartHash: ""

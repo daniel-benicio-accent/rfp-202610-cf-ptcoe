@@ -1,0 +1,165 @@
+# =============================================================================
+# GKE: regional Standard cluster, public, one autoscaled node pool
+#
+# How scaling works, end to end:
+#
+#   load ─► hping CPU above target ─► HPA adds a pod (app.tf)
+#        ─► the pod cannot share a node (required anti-affinity) ─► Pending
+#        ─► cluster autoscaler adds a node, up to max_nodes
+#
+# and in reverse once the load goes: the HPA removes pods, the autoscaler
+# removes the nodes they leave empty. The manual lever is the same chain,
+# started by hand: raise hping_min_replicas (see the scale_* outputs). Resizing
+# the node pool directly does not stick — the autoscaler removes nodes that
+# have nothing to run.
+#
+# Egress: each node has its own public IP, and a pod's outbound traffic to the
+# internet leaves from the public IP of the node it runs on. With one hping pod
+# per node, every hping pod has a public egress IP of its own. Those IPs are
+# ephemeral: a node that is replaced (scale-down, auto-repair, auto-upgrade)
+# comes back with a different one.
+# =============================================================================
+
+resource "google_container_cluster" "this" {
+  project  = google_project.this.project_id
+  name     = local.cluster_name
+  location = var.region
+
+  network    = google_compute_network.this.id
+  subnetwork = google_compute_subnetwork.this.id
+
+  # Public by omission: there is no private_cluster_config block, so the
+  # control plane has a public endpoint and every node gets an external IP.
+  # That external IP is what the NodePort is published on, and what the
+  # node's pods egress from (see default_snat_status below).
+
+  # The control plane is regional, replicated over the region's zones. The
+  # nodes run only in these zones, and every node pool inherits them. GKE
+  # creates initial_node_count nodes in EACH zone listed, so one zone is what
+  # makes the cluster start with exactly one node.
+  node_locations = var.node_zones
+
+  # The default pool cannot be configured the way this demo needs, so it is
+  # created with one node and immediately removed; the pool below replaces it.
+  remove_default_node_pool = true
+  initial_node_count       = 1
+
+  # Only applies to that throwaway default pool, so it never runs as the
+  # default compute service account, not even for the minute it exists.
+  # Same machine and disk as the real pool: left unset, GKE makes it an
+  # e2-medium, and creating the cluster would need capacity for a machine type
+  # the demo never uses.
+  # Ignored afterwards: once the pool is gone, any drift here would otherwise
+  # plan a full cluster replacement.
+  node_config {
+    machine_type    = var.machine_type
+    disk_type       = local.boot_disk_type
+    service_account = google_service_account.nodes.email
+    oauth_scopes    = ["https://www.googleapis.com/auth/cloud-platform"]
+  }
+
+  deletion_protection = false
+
+  release_channel {
+    channel = var.release_channel
+  }
+
+  ip_allocation_policy {
+    cluster_secondary_range_name  = "pods"
+    services_secondary_range_name = "services"
+  }
+
+  # What makes the node's public IP the pods' egress IP. With SNAT on, a pod's
+  # packets to the internet are rewritten to the node's internal IP, which the
+  # VPC maps 1:1 to the node's external IP. With it off, they would
+  # leave with the pod IP, which has no external mapping and so no internet
+  # access at all. It is GKE's default; stated here because the demo depends
+  # on it. No Cloud NAT exists in this module, and none would apply anyway to
+  # nodes that have an external IP of their own.
+  default_snat_status {
+    disabled = false
+  }
+
+  # No Workload Identity, on purpose. Nothing here calls Google APIs from a
+  # pod, and it costs a gke-metadata-server pod on every node — about a tenth
+  # of a 1-vCPU node, which is the headroom the first node needs. The trade-off:
+  # pods can read the node's metadata server and act as the node service
+  # account, which only holds roles/container.defaultNodeServiceAccount.
+  # Enabling it later recreates every node.
+
+  # Scale down sooner than the default profile does. In a demo that means the
+  # node count visibly follows the load back down within minutes.
+  cluster_autoscaling {
+    autoscaling_profile = "OPTIMIZE_UTILIZATION"
+  }
+
+  resource_labels = {
+    demo = var.app_name
+  }
+
+  lifecycle {
+    ignore_changes = [node_config]
+  }
+
+  depends_on = [
+    time_sleep.wait_for_apis,
+    google_project_iam_member.nodes,
+  ]
+}
+
+resource "google_container_node_pool" "web" {
+  project  = google_project.this.project_id
+  name     = "${var.app_name}-pool"
+  location = var.region
+  cluster  = google_container_cluster.this.name
+
+  # Zones come from the cluster's node_locations (var.node_zones). This count
+  # is per zone: one zone, one node. The autoscaler takes it from there.
+  initial_node_count = 1
+
+  # total_* counts across all zones; the plain min/max_node_count would be per
+  # zone and multiply both bounds as soon as node_zones lists more than one.
+  autoscaling {
+    total_min_node_count = var.min_nodes
+    total_max_node_count = var.max_nodes
+    location_policy      = "BALANCED"
+  }
+
+  management {
+    auto_repair  = true
+    auto_upgrade = true
+  }
+
+  # Upgrades add a node before draining one, so capacity never dips.
+  upgrade_settings {
+    max_surge       = 1
+    max_unavailable = 0
+  }
+
+  node_config {
+    # Container-Optimized OS ships arm64 builds; GKE picks the one matching
+    # the machine. Arm nodes come up with the kubernetes.io/arch=arm64 taint,
+    # which main.tf's local.pod_placement answers for every chart.
+    machine_type    = var.machine_type
+    image_type      = "COS_CONTAINERD"
+    disk_size_gb    = var.disk_size_gb
+    disk_type       = local.boot_disk_type
+    service_account = google_service_account.nodes.email
+    oauth_scopes    = ["https://www.googleapis.com/auth/cloud-platform"]
+    tags            = [local.node_tag]
+
+    labels = {
+      demo = var.app_name
+    }
+
+    shielded_instance_config {
+      enable_secure_boot          = true
+      enable_integrity_monitoring = true
+    }
+  }
+
+  # The autoscaler owns the node count after creation.
+  lifecycle {
+    ignore_changes = [initial_node_count]
+  }
+}

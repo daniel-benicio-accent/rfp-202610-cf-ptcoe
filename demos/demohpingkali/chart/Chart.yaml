@@ -1,0 +1,8 @@
+apiVersion: v2
+name: hping-site
+description: >-
+  Static page on nginx:alpine, at most one pod per node, autoscaled on CPU,
+  behind the Istio ingress gateway with STRICT mTLS. Installed by
+  terraform/gcp/app.tf in a demo rendered by scripts/bootstrap-nginx.sh.
+type: application
+version: 0.1.0

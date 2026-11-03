@@ -1,0 +1,157 @@
+# =============================================================================
+# Static page on a public GKE cluster, with Istio
+#
+#   New project, billing linked
+#   Dedicated VPC and VPC-native subnet; nothing sits on a default network
+#   GKE Standard: regional control plane, nodes in one zone by default
+#   Public endpoint, and a public IP on every node
+#   One autoscaled node pool of Arm (Axion) nodes by default: starts at 1
+#   node, up to 20, one hping pod each
+#   Istio (sidecar mode) with STRICT mTLS inside the app namespace
+#   Ingress gateway published as a NodePort on every node's public IP
+#
+#   In:   Internet ─► <node public IP>:30080 ─► Istio ingress gateway
+#                  ─► (mTLS) ─► hping:alpine, one pod per node
+#   Out:  hping pod ─► SNAT to its node ─► that node's public IP ─► Internet
+#
+# Files: main.tf (project, network), gke.tf (cluster, nodes), istio.tf (mesh,
+# gateway), app.tf (the page). The page itself is the Helm chart in ../../chart.
+# =============================================================================
+
+locals {
+  required_apis = [
+    "compute.googleapis.com",
+    "container.googleapis.com",
+    "iam.googleapis.com",
+    "logging.googleapis.com",
+    "monitoring.googleapis.com",
+  ]
+
+  cluster_name = "${var.app_name}-gke"
+  node_tag     = "${var.app_name}-node"
+
+  # GKE taints Arm nodes with kubernetes.io/arch=arm64:NoSchedule, so a pod
+  # without a matching toleration never lands on one. Every chart this module
+  # installs gets both of these: a nodeSelector for the node architecture, and
+  # the toleration, which does nothing on x86 nodes. Add the family here if a
+  # new Arm series is used.
+  node_arch = can(regex("^(t2a|c4a|n4a)-", var.machine_type)) ? "arm64" : "amd64"
+
+  pod_placement = {
+    nodeSelector = { "kubernetes.io/arch" = local.node_arch }
+    tolerations = [{
+      key      = "kubernetes.io/arch"
+      operator = "Equal"
+      value    = "arm64"
+      effect   = "NoSchedule"
+    }]
+  }
+
+  # Fourth-generation series boot from Hyperdisk only; E2, T2A and older from
+  # Persistent Disk only. Picking the wrong one fails the node pool creation,
+  # ten minutes into the apply.
+  boot_disk_type = coalesce(
+    var.disk_type,
+    can(regex("^[cn]4[a-z]?-", var.machine_type)) ? "hyperdisk-balanced" : "pd-balanced",
+  )
+}
+
+# ── Project ──────────────────────────────────────────────────────────────────
+resource "google_project" "this" {
+  project_id      = var.project_id
+  name            = var.app_name
+  billing_account = var.billing_account
+  org_id          = var.org_id
+  folder_id       = var.folder_id
+
+  auto_create_network = false
+
+  # The provider defaults to PREVENT, which makes `tofu destroy` fail on the
+  # project. This is a throwaway demo, so destroy means delete.
+  deletion_policy = "DELETE"
+
+  labels = {
+    demo = var.app_name
+  }
+}
+
+resource "google_project_service" "apis" {
+  for_each = toset(local.required_apis)
+
+  project            = google_project.this.project_id
+  service            = each.value
+  disable_on_destroy = false
+}
+
+# Enablement returns before the APIs are ready to take requests on a new
+# project, and the GKE service agent is provisioned asynchronously after it.
+# Without this wait, the first network or cluster call fails intermittently
+# with "API has not been used in project ... or it is disabled".
+resource "time_sleep" "wait_for_apis" {
+  depends_on      = [google_project_service.apis]
+  create_duration = "60s"
+}
+
+# ── Node service account ─────────────────────────────────────────────────────
+# Dedicated and minimal. The default compute service account can hold Editor
+# on the project, which nodes running internet-facing pods have no business
+# holding. This predefined role is GKE's own least-privilege set for nodes.
+resource "google_service_account" "nodes" {
+  project      = google_project.this.project_id
+  account_id   = "${var.app_name}-nodes"
+  display_name = "${var.app_name} GKE node service account"
+
+  depends_on = [time_sleep.wait_for_apis]
+}
+
+resource "google_project_iam_member" "nodes" {
+  project = google_project.this.project_id
+  role    = "roles/container.defaultNodeServiceAccount"
+  member  = "serviceAccount:${google_service_account.nodes.email}"
+}
+
+# ── Network ──────────────────────────────────────────────────────────────────
+resource "google_compute_network" "this" {
+  project                 = google_project.this.project_id
+  name                    = "${var.app_name}-vpc"
+  auto_create_subnetworks = false
+
+  depends_on = [time_sleep.wait_for_apis]
+}
+
+# VPC-native: pods and services get their own secondary ranges, so pod IPs
+# are routable in the VPC without per-node routes.
+resource "google_compute_subnetwork" "this" {
+  project                  = google_project.this.project_id
+  name                     = "${var.app_name}-subnet"
+  region                   = var.region
+  network                  = google_compute_network.this.id
+  ip_cidr_range            = var.subnet_cidr
+  private_ip_google_access = true
+
+  secondary_ip_range {
+    range_name    = "pods"
+    ip_cidr_range = var.pods_cidr
+  }
+
+  secondary_ip_range {
+    range_name    = "services"
+    ip_cidr_range = var.services_cidr
+  }
+}
+
+# The only ingress opened by hand. GKE creates its own rules for control plane
+# to node and node to node traffic; it does not open NodePorts to the internet.
+resource "google_compute_firewall" "nodeports" {
+  project       = google_project.this.project_id
+  name          = "${var.app_name}-allow-nodeports"
+  network       = google_compute_network.this.id
+  direction     = "INGRESS"
+  source_ranges = var.nodeport_source_ranges
+  target_tags   = [local.node_tag]
+
+  allow {
+    protocol = "tcp"
+    ports    = [tostring(var.node_port_http), tostring(var.node_port_https)]
+  }
+}

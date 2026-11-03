@@ -84,7 +84,7 @@ zone exists. Which Azure services replace the GCP origin is also still open.
 | [specs/_templates/](specs/_templates/) | Templates the spec scaffolder copies from. |
 | [src/terraform/_templates/](src/terraform/_templates/) | The only Terraform kept in the repo. Everything else is rendered per demo. |
 | `demos/<name>/` | One self-contained demo, rendered by the wizard. Not present until you create one. |
-| [scripts/](scripts/) | Repository tooling: spec scaffolder, demo wizard, teardown. |
+| [scripts/](scripts/) | Repository tooling: spec scaffolder, demo wizards (Cloud Run origin; GKE with Istio and nginx), teardown. |
 | [docs/spec-workflow.md](docs/spec-workflow.md) | The spec → plan → tasks → code lifecycle and status values. |
 | [docs/conventions.md](docs/conventions.md) | Working agreements: language, naming, documentation, AI tooling, secrets. |
 | [docs/prerequisites.md](docs/prerequisites.md) | Workstation setup: WSL, OpenTofu, `gcloud`, and the environment variables. |
@@ -107,10 +107,12 @@ here — each demo gets its own, rendered by the wizard.
 src/
 ├── app/                      origin application (Flask) — not created yet, spec 0001 task 4
 ├── load-generator/           traffic and bot simulator — not created yet, spec 0001 task 11
+├── charts/nginx-site/        static nginx page, one pod per node, Istio Gateway and mTLS
 └── terraform/_templates/
     ├── gcp/                  origin infrastructure
     ├── zone/                 proxied record, Host rewrite, edge secret injection
-    └── feature/              one edge capability, parameterised by spec and slug
+    ├── feature/              one edge capability, parameterised by spec and slug
+    └── gke-nginx/            new project, public GKE, Istio, and the nginx chart's release
 
 demos/<name>/                one demo, rendered from the above
 ├── .envconfig                metadata, read by project-nuke.sh
@@ -193,6 +195,17 @@ repeat a known-good demo:
 
 Re-running against an existing demo never overwrites a file. Run
 `./scripts/bootstrap-terraform.sh --help` for the full option list.
+
+A second wizard renders a different origin: a static nginx page on a public
+GKE cluster of Arm nodes in a new project, with Istio, one pod per node, 1 to 20 nodes, and
+the page on a NodePort of every node's public IP — which is also the egress IP
+of the pod on that node. No Cloudflare modules yet.
+
+```bash
+./scripts/bootstrap-nginx.sh --non-interactive --name 2-demonginx --project <new-project-id>
+export TF_VAR_billing_account=<billing-account-id>
+cd demos/2-demonginx/terraform/gcp && tofu init && tofu apply
+```
 
 **Versioning a demo folder is your choice.** Commit one when you want a record
 of exactly what a given demo was; leave it alone otherwise. Local state and

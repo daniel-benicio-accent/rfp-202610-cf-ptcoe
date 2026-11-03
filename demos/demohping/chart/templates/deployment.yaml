@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "hping-site.labels" . | nindent 4 }}
+spec:
+  # No replicas field: the HPA owns the count. Setting one here would snap the
+  # count back to it on every upgrade.
+  selector:
+    matchLabels:
+      {{- include "hping-site.selectorLabels" . | nindent 6 }}
+  # Surge first, never drop below the current count. With one pod per node the
+  # surge pod needs a fresh node, so a rollout waits on the autoscaler — slow,
+  # but the page never loses capacity.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        {{- include "hping-site.selectorLabels" . | nindent 8 }}
+        # Injection by pod label, so the namespace needs no Istio label and
+        # can be created by Helm.
+        sidecar.istio.io/inject: "true"
+      annotations:
+        # Rolls the pods when default.conf changes; a subPath mount never
+        # picks up a ConfigMap edit by itself.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        # Same for the environment, which is read only at container start.
+        checksum/env: {{ include (print $.Template.BasePath "/configmap-env.yaml") . | sha256sum }}
+    spec:
+      affinity:
+        podAntiAffinity:
+          # The one-pod-per-node rule. Required, not preferred: a pod that
+          # cannot get a node to itself stays Pending, and a Pending pod is
+          # what makes the cluster autoscaler add a node.
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  {{- include "hping-site.selectorLabels" . | nindent 18 }}
+      # Then spread over zones as evenly as the nodes allow.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "hping-site.selectorLabels" . | nindent 14 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: hping
+          image: {{ .Values.image }}
+          # Every key of env in values.yaml, as an environment variable.
+          envFrom:
+            - configMapRef:
+                name: "{{ .Release.Name }}-env"
+          ports:
+            - name: http
+              containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          # Gives the gateway time to stop routing here before hping exits,
+          # so scale-down and node drains drop no requests.
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "5"]
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: {{ .Release.Name }}
