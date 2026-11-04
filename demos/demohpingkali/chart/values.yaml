@@ -17,14 +17,19 @@ replicas:
   # measures the hping container alone, so the sidecar does not dilute it.
   cpuTargetPercent: 60
 
-# A small request is what makes scaling visible: the HPA works from
-# utilisation of the request, and a static page uses very little CPU.
+# Sized for tsenart's Vegeta, the load generator this pod runs. Vegeta is a Go
+# HTTP engine: almost idle at rest, CPU-bound while attacking. The request is
+# kept modest on purpose — the HPA scales on utilisation of this request, so a
+# small one lets CPU climb past target and add pods under load. The limit is the
+# ceiling one pod may burst to before the HPA spreads the work over more pods;
+# memory covers Vegeta's in-flight result buffers.
 resources:
   requests:
-    cpu: 50m
-    memory: 32Mi
-  limits:
+    cpu: 250m
     memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 256Mi
 
 # Set by Terraform from the node machine type: kubernetes.io/arch pinned to
 # arm64 or amd64, plus a toleration for GKE's Arm node taint.

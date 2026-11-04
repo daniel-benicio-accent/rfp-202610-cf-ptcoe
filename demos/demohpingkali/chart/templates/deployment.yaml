@@ -10,9 +10,9 @@ spec:
   selector:
     matchLabels:
       {{- include "hping-site.selectorLabels" . | nindent 6 }}
-  # Surge first, never drop below the current count. With one pod per node the
-  # surge pod needs a fresh node, so a rollout waits on the autoscaler — slow,
-  # but the page never loses capacity.
+  # Surge first, never drop below the current count, so the page never loses
+  # capacity during a rollout. Pods may now share a node, so the surge pod can
+  # usually start on an existing node instead of waiting on the autoscaler.
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -32,18 +32,26 @@ spec:
         # Same for the environment, which is read only at container start.
         checksum/env: {{ include (print $.Template.BasePath "/configmap-env.yaml") . | sha256sum }}
     spec:
-      affinity:
-        podAntiAffinity:
-          # The one-pod-per-node rule. Required, not preferred: a pod that
-          # cannot get a node to itself stays Pending, and a Pending pod is
-          # what makes the cluster autoscaler add a node.
-          requiredDuringSchedulingIgnoredDuringExecution:
-            - topologyKey: kubernetes.io/hostname
-              labelSelector:
-                matchLabels:
-                  {{- include "hping-site.selectorLabels" . | nindent 18 }}
-      # Then spread over zones as evenly as the nodes allow.
+      # No pod anti-affinity: pods may share a node, but the count per node is
+      # kept even — a hard rule at schedule time (the hostname spread below), and
+      # corrected afterwards for drift (e.g. once the autoscaler adds a node) by
+      # the descheduler CronJob (descheduler.tf).
       topologySpreadConstraints:
+        # Balance the pod count across nodes, as a hard rule: no node may hold
+        # more than one pod above the emptiest (maxSkew 1). If no node can take a
+        # pod without breaking that, the pod stays Pending and the cluster
+        # autoscaler adds a node. matchLabelKeys scopes the count to a single
+        # ReplicaSet (by pod-template-hash), so during a rollout the old and new
+        # pods are counted apart and the surge pod never deadlocks against them.
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              {{- include "hping-site.selectorLabels" . | nindent 14 }}
+          matchLabelKeys:
+            - pod-template-hash
+        # And spread over zones as evenly as the nodes allow.
         - maxSkew: 1
           topologyKey: topology.kubernetes.io/zone
           whenUnsatisfiable: ScheduleAnyway

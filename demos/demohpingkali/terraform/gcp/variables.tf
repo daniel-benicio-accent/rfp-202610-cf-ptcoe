@@ -200,6 +200,44 @@ variable "gateway_min_replicas" {
   default     = 1
 }
 
+# ── Descheduler ──────────────────────────────────────────────────────────────
+variable "descheduler_version" {
+  description = <<-EOT
+    Version of the kubernetes-sigs/descheduler Helm chart. Pinned for a
+    repeatable apply. 0.36.0 is the newest published chart as of 4 Nov 2026; the
+    chart version tracks the descheduler app version. List what is available
+    with:
+      helm repo add descheduler https://kubernetes-sigs.github.io/descheduler/
+      helm search repo descheduler/descheduler --versions
+  EOT
+  type        = string
+  default     = "0.36.0"
+}
+
+variable "descheduler_schedule" {
+  description = <<-EOT
+    Cron schedule for the descheduler run that rebalances pods across nodes and
+    recycles the longest-running ones. Daily at midnight by default. It is a
+    CronJob schedule, so the time zone is the CronJob's — UTC on GKE; adjust the
+    expression if you want midnight in another zone.
+  EOT
+  type        = string
+  default     = "0 0 * * *"
+}
+
+variable "descheduler_max_pod_lifetime_seconds" {
+  description = <<-EOT
+    Age, in seconds, past which the descheduler's daily run evicts an app pod so
+    it is recreated — the "kill the longest-running pods" lever. Oldest pods go
+    first. 86400 (24h) by default, so the midnight run cycles out any app pod
+    that has lived more than a day. The DefaultEvictor respects the app PDB
+    (one at a time) and never evicts a workload's only pod (minReplicas 2 in
+    descheduler.tf). Applies to the app namespace only.
+  EOT
+  type        = number
+  default     = 86400
+}
+
 # ── Application ──────────────────────────────────────────────────────────────
 variable "hping_image" {
   description = <<-EOT
@@ -219,7 +257,7 @@ variable "hping_command" {
     listens on port 80. Set [] to run the image's own entrypoint.
   EOT
   type        = list(string)
-  default     = ["bash", "-c", "hping3 -S --flood --rand-source -p $papa $tango"]
+  default     = ["bash", "-c", "echo \"GET https://$tango:$papa/#/search\" | vegeta attack -rate=50 -duration=10m | vegeta report"]
 }
 
 variable "hping_min_replicas" {
@@ -265,5 +303,5 @@ variable "hping_env_tango" {
     are strings; a changed value rolls the pods (checksum/env annotation).
   EOT
   type        = string
-  default     = "coedemo.dbenicio.com"
+  default     = "app-pt-cybersec-coe-juiceshop.pt-accenture.cftenant.com"
 }
