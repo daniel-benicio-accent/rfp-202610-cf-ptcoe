@@ -1,3 +1,4 @@
+
 """Send a bounded sample of synthetic requests to the Bot Management demo."""
 
 import argparse
@@ -14,6 +15,10 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 MAX_REQUESTS = 10
 MIN_INTERVAL_SECONDS = 0.5
+
+MALICIOUS_SCRAPING_MAX_REQUESTS = 20
+MALICIOUS_SCRAPING_MIN_INTERVAL_SECONDS = 0.2
+
 HOST_PATTERN = re.compile(
     r"(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*"
     r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\Z"
@@ -29,7 +34,7 @@ class Scenario:
 
 SCENARIOS = {
     "brute-force": Scenario("POST", "/api/demo/login", (("scenario", "brute-force"),)),
-    "malicious-scraping": Scenario("GET", "/api/demo/catalog"),
+    "malicious-scraping": Scenario("GET", "/rest/products/1/reviews"),
     "spam-bots": Scenario("POST", "/api/demo/contact", (("scenario", "spam-bots"),)),
     "form-abuse": Scenario("POST", "/api/demo/contact", (("scenario", "form-abuse"),)),
     "account-takeover": Scenario(
@@ -93,10 +98,31 @@ def parse_args(argv=None):
     parser.add_argument("--count", type=int, default=5)
     parser.add_argument("--interval", type=float, default=1.0)
     args = parser.parse_args(argv)
-    if not 1 <= args.count <= MAX_REQUESTS:
-        parser.error(f"--count must be between 1 and {MAX_REQUESTS}")
-    if not math.isfinite(args.interval) or args.interval < MIN_INTERVAL_SECONDS:
-        parser.error(f"--interval must be at least {MIN_INTERVAL_SECONDS} seconds")
+    if args.scenario == "malicious-scraping":
+        if not 1 <= args.count <= MALICIOUS_SCRAPING_MAX_REQUESTS:
+            parser.error(
+            f"--count must be between 1 and "
+            f"{MALICIOUS_SCRAPING_MAX_REQUESTS}"
+        )
+        if (
+        not math.isfinite(args.interval)
+        or args.interval < MALICIOUS_SCRAPING_MIN_INTERVAL_SECONDS
+    ):
+            parser.error(
+            f"--interval must be at least "
+            f"{MALICIOUS_SCRAPING_MIN_INTERVAL_SECONDS} seconds"
+        )
+    else:
+        if not 1 <= args.count <= MAX_REQUESTS:
+         parser.error(f"--count must be between 1 and {MAX_REQUESTS}")
+
+        if (
+        not math.isfinite(args.interval)
+        or args.interval < MIN_INTERVAL_SECONDS
+        ):
+            parser.error(
+            f"--interval must be at least {MIN_INTERVAL_SECONDS} seconds"
+        )
     return args
 
 
