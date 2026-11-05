@@ -1,3 +1,4 @@
+
 """Send a bounded sample of synthetic requests to the Bot Management demo."""
 
 import argparse
@@ -32,6 +33,8 @@ JUICE_SHOP_TEST_EMAIL = "t05750647@gmail.com"
 # These are intentionally test values, not real leaked credentials.
 CF_TEST_USERNAME = "CF_EXPOSED_USERNAME@example.com"
 CF_TEST_PASSWORD = "CF_EXPOSED_PASSWORD"
+MALICIOUS_SCRAPING_MAX_REQUESTS = 20
+MALICIOUS_SCRAPING_MIN_INTERVAL_SECONDS = 0.2
 
 HOST_PATTERN = re.compile(
     r"(?=.{1,253}\Z)"
@@ -125,6 +128,11 @@ SCENARIOS = {
             ),
         ),
         local_juice_shop=True,
+    "malicious-scraping": Scenario("GET", "/rest/products/1/reviews"),
+    "spam-bots": Scenario("POST", "/api/demo/contact", (("scenario", "spam-bots"),)),
+    "form-abuse": Scenario("POST", "/api/demo/contact", (("scenario", "form-abuse"),)),
+    "account-takeover": Scenario(
+        "POST", "/api/demo/login", (("scenario", "account-takeover"),)
     ),
 
     "account": Scenario(
@@ -359,6 +367,31 @@ def parse_args(argv=None):
             f"{MIN_INTERVAL_SECONDS} seconds"
         )
 
+    if args.scenario == "malicious-scraping":
+        if not 1 <= args.count <= MALICIOUS_SCRAPING_MAX_REQUESTS:
+            parser.error(
+            f"--count must be between 1 and "
+            f"{MALICIOUS_SCRAPING_MAX_REQUESTS}"
+        )
+        if (
+        not math.isfinite(args.interval)
+        or args.interval < MALICIOUS_SCRAPING_MIN_INTERVAL_SECONDS
+    ):
+            parser.error(
+            f"--interval must be at least "
+            f"{MALICIOUS_SCRAPING_MIN_INTERVAL_SECONDS} seconds"
+        )
+    else:
+        if not 1 <= args.count <= MAX_REQUESTS:
+         parser.error(f"--count must be between 1 and {MAX_REQUESTS}")
+
+        if (
+        not math.isfinite(args.interval)
+        or args.interval < MIN_INTERVAL_SECONDS
+        ):
+            parser.error(
+            f"--interval must be at least {MIN_INTERVAL_SECONDS} seconds"
+        )
     return args
 
 

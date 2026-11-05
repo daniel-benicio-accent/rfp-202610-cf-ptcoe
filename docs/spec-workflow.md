@@ -39,3 +39,29 @@ Every feature lives in its own folder: `specs/NNNN-kebab-slug/`.
    "Open questions" section and block approval until resolved or explicitly
    deferred.
 5. **Register every new spec** in [../specs/README.md](../specs/README.md).
+6. **No feature leaves Draft without rollout notes.** See below.
+
+## Rollout notes
+
+Every `plan.md` ends with a `## Rollout notes` section: tips for whoever runs
+the demo, and the steps to stand the feature up.
+
+Once a feature leaves `Draft` — whatever its next status, including the
+backlog's `WIP` and `PoC done` markers in
+[../specs/README.md](../specs/README.md) — that section must hold **at least one
+note with tips for demonstrating it**. Move the status and add the note in the
+same change.
+
+When there is nothing to say yet, use the standard disclaimer, word for word, so
+the placeholders are easy to find later:
+
+> **Demo notes pending.** No demonstration tips have been written for this
+> feature yet. Rehearse it end to end against the acceptance criteria in
+> `spec.md` before showing it to anyone.
+
+The wording is provisional. Change it here first, then wherever it is used:
+
+```bash
+grep -l 'Demo notes pending' specs/*/plan.md     # features still on the placeholder
+grep -L '^## Rollout notes' specs/*/plan.md      # plans missing the section
+```

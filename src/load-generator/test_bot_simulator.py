@@ -77,6 +77,23 @@ class BotSimulatorTests(unittest.TestCase):
                 with redirect_stderr(StringIO()), self.assertRaises(SystemExit):
                     parse_args(["brute-force", "--interval", interval])
 
+    def test_malicious_scraping_uses_juice_shop_reviews_endpoint(self):
+        scenario = SCENARIOS["malicious-scraping"]
+        self.assertEqual(scenario.method, "GET")
+        self.assertEqual(scenario.path, "/rest/products/1/reviews")
+
+    def test_malicious_scraping_allows_twenty_requests_at_five_per_second(self):
+        args = parse_args(
+            [
+                "malicious-scraping",
+                "--count",
+                "20",
+                "--interval",
+                "0.2",
+            ]
+        )
+        self.assertEqual(args.count, 20)
+        self.assertEqual(args.interval, 0.2)
 
 if __name__ == "__main__":
     unittest.main()
