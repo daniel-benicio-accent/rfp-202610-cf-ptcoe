@@ -1,5 +1,4 @@
-
-"""Send a bounded sample of synthetic requests to the Bot Management demo."""
+"""Send a bounded sample of synthetic requests to the Cloudflare demo."""
 
 import argparse
 import json
@@ -21,6 +20,9 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 MAX_REQUESTS = 1000
 MIN_INTERVAL_SECONDS = 0.1
 
+MALICIOUS_SCRAPING_MAX_REQUESTS = 20
+MALICIOUS_SCRAPING_MIN_INTERVAL_SECONDS = 0.2
+
 DEFAULT_JUICE_SHOP_HOST = "XXXXXX"
 
 JUICE_SHOP_CLOUDFLARE_HOST = (
@@ -33,8 +35,6 @@ JUICE_SHOP_TEST_EMAIL = "t05750647@gmail.com"
 # These are intentionally test values, not real leaked credentials.
 CF_TEST_USERNAME = "CF_EXPOSED_USERNAME@example.com"
 CF_TEST_PASSWORD = "CF_EXPOSED_PASSWORD"
-MALICIOUS_SCRAPING_MAX_REQUESTS = 20
-MALICIOUS_SCRAPING_MIN_INTERVAL_SECONDS = 0.2
 
 HOST_PATTERN = re.compile(
     r"(?=.{1,253}\Z)"
@@ -58,12 +58,13 @@ class Scenario:
 
 SCENARIOS = {
     # -----------------------------------------------------------------------
-    # Brute force simulation:
-    # same synthetic test account, multiple incorrect passwords.
+    # Scenario 1 - Brute force
+    #
+    # Same synthetic test account with several incorrect passwords.
     # -----------------------------------------------------------------------
     "brute": Scenario(
-        "POST",
-        "/rest/user/login",
+        method="POST",
+        path="/rest/user/login",
         payloads=tuple(
             (
                 JUICE_SHOP_TEST_EMAIL,
@@ -75,16 +76,14 @@ SCENARIOS = {
     ),
 
     # -----------------------------------------------------------------------
-    # Credential stuffing / leaked credential detection simulation.
+    # Scenario 2 - Credential stuffing / leaked credentials
     #
-    # Most requests use synthetic invalid passwords.
-    # Selected requests contain Cloudflare test credentials so that
-    # Leaked Credentials Detection can be validated without using
-    # actual compromised credentials.
+    # Mixes synthetic incorrect credentials with Cloudflare test
+    # credentials for Leaked Credentials Detection validation.
     # -----------------------------------------------------------------------
     "stuffing": Scenario(
-        "POST",
-        "/rest/user/login",
+        method="POST",
+        path="/rest/user/login",
         payloads=(
             (
                 JUICE_SHOP_TEST_EMAIL,
@@ -128,17 +127,18 @@ SCENARIOS = {
             ),
         ),
         local_juice_shop=True,
-    "malicious-scraping": Scenario("GET", "/rest/products/1/reviews"),
-    "spam-bots": Scenario("POST", "/api/demo/contact", (("scenario", "spam-bots"),)),
-    "form-abuse": Scenario("POST", "/api/demo/contact", (("scenario", "form-abuse"),)),
-    "account-takeover": Scenario(
-        "POST", "/api/demo/login", (("scenario", "account-takeover"),)
     ),
 
-    "account": Scenario(
-        "POST",
-        "/api/demo/login",
-        (("scenario", "account-takeover"),),
+    # -----------------------------------------------------------------------
+    # Scenario 3 - Bounded scraping simulation
+    #
+    # Repeated GET requests against a public Juice Shop endpoint.
+    # This scenario has stricter request-count and interval limits.
+    # -----------------------------------------------------------------------
+    "malicious-scraping": Scenario(
+        method="GET",
+        path="/rest/products/1/reviews",
+        local_juice_shop=True,
     ),
 }
 
@@ -202,7 +202,7 @@ def build_target(
                 f"JUICE_SHOP_HOST is not allowed: {hostname}"
             )
 
-        # Local Juice Shop installations use port 3000.
+        # Local Juice Shop deployments.
         if hostname in {
             "localhost",
             "127.0.0.1",
@@ -228,6 +228,7 @@ def build_target(
         )
 
     query = urlencode(scenario.query)
+
     target = f"https://{hostname}{scenario.path}"
 
     if query:
@@ -252,11 +253,12 @@ def send_one(
     scenario: Scenario,
     index: int,
 ) -> int:
+    """Send one request for a predefined scenario."""
 
     data = None
 
     headers = {
-        "User-Agent": "BotManagement-Demo-Simulator/1.0",
+        "User-Agent": "NormalUser/1.0",
         "Accept": "application/json",
     }
 
@@ -320,12 +322,18 @@ def send_one(
             f"request failed: {error.reason}"
         ) from error
 
+    except TimeoutError as error:
+        raise RuntimeError(
+            "request timed out"
+        ) from error
+
 
 # ---------------------------------------------------------------------------
 # CLI arguments
 # ---------------------------------------------------------------------------
 
 def parse_args(argv=None):
+    """Parse and validate command-line arguments."""
 
     parser = argparse.ArgumentParser(
         description=(
@@ -337,71 +345,57 @@ def parse_args(argv=None):
     parser.add_argument(
         "scenario",
         choices=sorted(SCENARIOS),
+        help="Synthetic scenario to execute.",
     )
 
     parser.add_argument(
         "--count",
         type=int,
         default=5,
+        help="Number of requests to send.",
     )
 
     parser.add_argument(
         "--interval",
         type=float,
         default=1.0,
+        help="Delay between requests in seconds.",
     )
 
     args = parser.parse_args(argv)
 
-    if not 1 <= args.count <= MAX_REQUESTS:
+    if args.scenario == "malicious-scraping":
+        max_requests = MALICIOUS_SCRAPING_MAX_REQUESTS
+        min_interval = MALICIOUS_SCRAPING_MIN_INTERVAL_SECONDS
+    else:
+        max_requests = MAX_REQUESTS
+        min_interval = MIN_INTERVAL_SECONDS
+
+    if not 1 <= args.count <= max_requests:
         parser.error(
-            f"--count must be between 1 and {MAX_REQUESTS}"
+            f"--count must be between 1 and {max_requests}"
         )
 
     if (
         not math.isfinite(args.interval)
-        or args.interval < MIN_INTERVAL_SECONDS
+        or args.interval < min_interval
     ):
         parser.error(
             f"--interval must be at least "
-            f"{MIN_INTERVAL_SECONDS} seconds"
+            f"{min_interval} seconds"
         )
 
-    if args.scenario == "malicious-scraping":
-        if not 1 <= args.count <= MALICIOUS_SCRAPING_MAX_REQUESTS:
-            parser.error(
-            f"--count must be between 1 and "
-            f"{MALICIOUS_SCRAPING_MAX_REQUESTS}"
-        )
-        if (
-        not math.isfinite(args.interval)
-        or args.interval < MALICIOUS_SCRAPING_MIN_INTERVAL_SECONDS
-    ):
-            parser.error(
-            f"--interval must be at least "
-            f"{MALICIOUS_SCRAPING_MIN_INTERVAL_SECONDS} seconds"
-        )
-    else:
-        if not 1 <= args.count <= MAX_REQUESTS:
-         parser.error(f"--count must be between 1 and {MAX_REQUESTS}")
-
-        if (
-        not math.isfinite(args.interval)
-        or args.interval < MIN_INTERVAL_SECONDS
-        ):
-            parser.error(
-            f"--interval must be at least {MIN_INTERVAL_SECONDS} seconds"
-        )
     return args
-
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
 def main(argv=None):
+    """Run the selected bounded simulation."""
 
     args = parse_args(argv)
+
     scenario = SCENARIOS[args.scenario]
 
     if scenario.local_juice_shop:
@@ -445,7 +439,6 @@ def main(argv=None):
     )
 
     for index in range(args.count):
-
         try:
             status = send_one(
                 target,
