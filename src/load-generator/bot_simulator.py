@@ -1,6 +1,7 @@
 """Send a bounded sample of synthetic requests to the Cloudflare demo."""
 
 import argparse
+import base64
 import json
 import math
 import os
@@ -8,9 +9,11 @@ import re
 import sys
 import time
 from dataclasses import dataclass
+import token
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
+
 
 
 # ---------------------------------------------------------------------------
@@ -57,6 +60,10 @@ class Scenario:
 
 
 SCENARIOS = {
+    
+    "spam-bots": Scenario("POST", "/rest/user/login"),
+    "form-abuse": Scenario("POST", "/api/demo/contact", (("scenario", "form-abuse"),)),
+
     # -----------------------------------------------------------------------
     # Scenario 1 - Brute force
     #
@@ -322,6 +329,12 @@ def send_one(
             f"request failed: {error.reason}"
         ) from error
 
+def spam_bot_login(
+    hostname: str,
+    email: str,
+    password: str,
+) -> tuple[str, int]:
+    target = f"https://{hostname}/rest/user/login"
     except TimeoutError as error:
         raise RuntimeError(
             "request timed out"
@@ -332,6 +345,108 @@ def send_one(
 # CLI arguments
 # ---------------------------------------------------------------------------
 
+    payload = json.dumps({
+        "email": email,
+        "password": password,
+    }).encode("utf-8")
+
+    request = Request(
+        target,
+        data=payload,
+        method="POST",
+        headers={
+            "User-Agent": "BotManagement-Demo-Simulator/1.0",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        },
+    )
+
+    try:
+        with HTTP.open(request, timeout=10) as response:
+            body = json.loads(response.read().decode("utf-8"))
+    except HTTPError as error:
+        raise RuntimeError(
+            f"login failed with HTTP {error.code}"
+        ) from error
+    except URLError as error:
+        raise RuntimeError(
+            f"login failed: {error.reason}"
+        ) from error
+
+    token = body.get("authentication", {}).get("token")
+
+    if not token:
+        raise RuntimeError(
+            "login succeeded but no authentication token was returned"
+        )
+
+    try:
+        token_parts = token.split(".")
+
+        if len(token_parts) != 3:
+            raise ValueError("unexpected token format")
+
+        encoded_payload = token_parts[1]
+        padding = "=" * (-len(encoded_payload) % 4)
+
+        decoded_payload = base64.urlsafe_b64decode(
+            encoded_payload + padding
+        )
+
+        token_payload = json.loads(
+            decoded_payload.decode("utf-8")
+        )
+
+        user_id = token_payload.get("data", {}).get("id")
+
+        if not isinstance(user_id, int):
+            raise ValueError("user ID is missing from token")
+
+    except (ValueError, KeyError, TypeError, json.JSONDecodeError) as error:
+        raise RuntimeError(
+            "login succeeded but the user ID could not be read from the token"
+        ) from error
+
+    return token, user_id
+
+def send_spam_complaint(
+    hostname: str,
+    token: str,
+    email: str,
+    user_id: int,
+    message: str,
+) -> int:
+    target = f"https://{hostname}/api/Complaints/"
+
+    payload = json.dumps({
+        "UserId": user_id,
+        "message": message,
+    }).encode("utf-8")
+
+    request = Request(
+        target,
+        data=payload,
+        method="POST",
+        headers={
+            "User-Agent": "BotManagement-Demo-Simulator/1.0",
+            "Accept": "application/json, text/plain, */*",
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}",
+            "Cookie": f"token={token}",
+            "x-user-email": email,
+        },
+    )
+
+    try:
+        with HTTP.open(request, timeout=10) as response:
+            return response.status
+    except HTTPError as error:
+        return error.code
+    except URLError as error:
+        raise RuntimeError(
+            f"complaint request failed: {error.reason}"
+        ) from error
+        
 def parse_args(argv=None):
     """Parse and validate command-line arguments."""
 
@@ -395,6 +510,17 @@ def main(argv=None):
     """Run the selected bounded simulation."""
 
     args = parse_args(argv)
+    hostname = os.environ.get("DEMO_HOSTNAME", "")
+    if not hostname:
+        print("Set DEMO_HOSTNAME to the authorized Cloudflare demo hostname.", file=sys.stderr)
+        return 2
+    if args.scenario == "spam-bots":
+        email = os.environ.get("SPAM_BOT_EMAIL", "")
+        password = os.environ.get("SPAM_BOT_PASSWORD", "")
+
+    if not email or not password:
+        print(
+            "Set SPAM_BOT_EMAIL and SPAM_BOT_PASSWORD.",
 
     scenario = SCENARIOS[args.scenario]
 
@@ -431,7 +557,21 @@ def main(argv=None):
         )
         return 2
 
+    try:
+        token, user_id = spam_bot_login(
+            hostname,
+            email,
+            password,
+        )
+    except RuntimeError as error:
+        print(
+            f"Spam bot login failed: {error}",
+            file=sys.stderr,
+        )
+        return 1
+
     print(
+        f"Spam bot login successful. user_id={user_id}"
         f"scenario={args.scenario} "
         f"requests={args.count} "
         f"interval_seconds={args.interval} "
@@ -439,7 +579,21 @@ def main(argv=None):
     )
 
     for index in range(args.count):
+        message = (
+            f"Spam Bot Demo Complaint {index + 1:02d}"
+        )
+
         try:
+            status = send_spam_complaint(
+                hostname,
+                token,
+                email,
+                user_id,
+                message,
+            )
+        except RuntimeError as error:
+            print(
+                f"Complaint {index + 1}/{args.count} "
             status = send_one(
                 target,
                 scenario,
@@ -455,7 +609,7 @@ def main(argv=None):
             return 1
 
         print(
-            f"request={index + 1}/{args.count} "
+            f"complaint={index + 1}/{args.count} 
             f"http_status={status}"
         )
 
