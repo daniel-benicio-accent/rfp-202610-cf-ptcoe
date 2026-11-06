@@ -1,10 +1,21 @@
-FROM python:3.12-slim
+FROM python:3.14-slim
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
-COPY bot_simulator.py .
 
-USER 10001:10001
+RUN useradd \
+    --create-home \
+    --uid 10001 \
+    --shell /usr/sbin/nologin \
+    simulator
+
+COPY --chown=simulator:simulator bot_simulator.py /app/bot_simulator.py
+
+RUN python -m py_compile /app/bot_simulator.py
+
+USER simulator
+
 ENTRYPOINT ["python", "/app/bot_simulator.py"]
+CMD ["--help"]
