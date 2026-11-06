@@ -1,7 +1,6 @@
 """Send a bounded sample of synthetic requests to the Cloudflare demo."""
 
 import argparse
-import base64
 import json
 import math
 import os
@@ -9,11 +8,8 @@ import re
 import sys
 import time
 from dataclasses import dataclass
-import token
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode, urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
-
 
 
 # ---------------------------------------------------------------------------
@@ -26,6 +22,9 @@ MIN_INTERVAL_SECONDS = 0.1
 MALICIOUS_SCRAPING_MAX_REQUESTS = 20
 MALICIOUS_SCRAPING_MIN_INTERVAL_SECONDS = 0.2
 
+SPAM_BOT_MAX_REQUESTS = 20
+SPAM_BOT_MIN_INTERVAL_SECONDS = 0.2
+
 DEFAULT_JUICE_SHOP_HOST = "XXXXXX"
 
 JUICE_SHOP_CLOUDFLARE_HOST = (
@@ -35,7 +34,7 @@ JUICE_SHOP_CLOUDFLARE_HOST = (
 JUICE_SHOP_TEST_EMAIL = "t05750647@gmail.com"
 
 # Cloudflare test credentials.
-# These are intentionally test values, not real leaked credentials.
+# These are test values, not real leaked credentials.
 CF_TEST_USERNAME = "CF_EXPOSED_USERNAME@example.com"
 CF_TEST_PASSWORD = "CF_EXPOSED_PASSWORD"
 
@@ -54,21 +53,11 @@ HOST_PATTERN = re.compile(
 class Scenario:
     method: str
     path: str
-    query: tuple[tuple[str, str], ...] = ()
     payloads: tuple[tuple[str, str], ...] = ()
-    local_juice_shop: bool = False
+    local_juice_shop: bool = True
 
 
 SCENARIOS = {
-    
-    "spam-bots": Scenario("POST", "/rest/user/login"),
-    "form-abuse": Scenario("POST", "/api/demo/contact", (("scenario", "form-abuse"),)),
-
-    # -----------------------------------------------------------------------
-    # Scenario 1 - Brute force
-    #
-    # Same synthetic test account with several incorrect passwords.
-    # -----------------------------------------------------------------------
     "brute": Scenario(
         method="POST",
         path="/rest/user/login",
@@ -79,82 +68,43 @@ SCENARIOS = {
             )
             for index in range(1, 11)
         ),
-        local_juice_shop=True,
     ),
 
-    # -----------------------------------------------------------------------
-    # Scenario 2 - Credential stuffing / leaked credentials
-    #
-    # Mixes synthetic incorrect credentials with Cloudflare test
-    # credentials for Leaked Credentials Detection validation.
-    # -----------------------------------------------------------------------
     "stuffing": Scenario(
         method="POST",
         path="/rest/user/login",
         payloads=(
-            (
-                JUICE_SHOP_TEST_EMAIL,
-                "WrongPassword01!",
-            ),
-            (
-                JUICE_SHOP_TEST_EMAIL,
-                "WrongPassword02!",
-            ),
-            (
-                CF_TEST_USERNAME,
-                CF_TEST_PASSWORD,
-            ),
-            (
-                JUICE_SHOP_TEST_EMAIL,
-                "WrongPassword03!",
-            ),
-            (
-                JUICE_SHOP_TEST_EMAIL,
-                "WrongPassword04!",
-            ),
-            (
-                CF_TEST_USERNAME,
-                CF_TEST_PASSWORD,
-            ),
-            (
-                JUICE_SHOP_TEST_EMAIL,
-                "WrongPassword05!",
-            ),
-            (
-                JUICE_SHOP_TEST_EMAIL,
-                "WrongPassword06!",
-            ),
-            (
-                CF_TEST_USERNAME,
-                CF_TEST_PASSWORD,
-            ),
-            (
-                JUICE_SHOP_TEST_EMAIL,
-                "WrongPassword07!",
-            ),
+            (JUICE_SHOP_TEST_EMAIL, "WrongPassword01!"),
+            (JUICE_SHOP_TEST_EMAIL, "WrongPassword02!"),
+            (CF_TEST_USERNAME, CF_TEST_PASSWORD),
+            (JUICE_SHOP_TEST_EMAIL, "WrongPassword03!"),
+            (JUICE_SHOP_TEST_EMAIL, "WrongPassword04!"),
+            (CF_TEST_USERNAME, CF_TEST_PASSWORD),
+            (JUICE_SHOP_TEST_EMAIL, "WrongPassword05!"),
+            (JUICE_SHOP_TEST_EMAIL, "WrongPassword06!"),
+            (CF_TEST_USERNAME, CF_TEST_PASSWORD),
+            (JUICE_SHOP_TEST_EMAIL, "WrongPassword07!"),
         ),
-        local_juice_shop=True,
     ),
 
-    # -----------------------------------------------------------------------
-    # Scenario 3 - Bounded scraping simulation
-    #
-    # Repeated GET requests against a public Juice Shop endpoint.
-    # This scenario has stricter request-count and interval limits.
-    # -----------------------------------------------------------------------
     "malicious-scraping": Scenario(
         method="GET",
         path="/rest/products/1/reviews",
-        local_juice_shop=True,
+    ),
+
+    # This scenario has its own login and complaint submission workflow.
+    "spam-bots": Scenario(
+        method="POST",
+        path="/api/Complaints/",
     ),
 }
 
 
 # ---------------------------------------------------------------------------
-# Allowed Juice Shop destinations
+# Allowed destinations
 # ---------------------------------------------------------------------------
 
-LOCAL_JUICE_SHOP_HOSTS = frozenset(
+ALLOWED_JUICE_SHOP_HOSTS = frozenset(
     {
         "localhost",
         "127.0.0.1",
@@ -190,69 +140,49 @@ HTTP = build_opener(NoRedirectHandler())
 # Target construction
 # ---------------------------------------------------------------------------
 
-def build_target(
-    hostname: str,
-    scenario: Scenario,
-) -> str:
-    """Build the target URL for a predefined scenario."""
+def validate_hostname(hostname: str) -> str:
+    """Validate and normalize the authorized Juice Shop hostname."""
 
     hostname = hostname.strip().lower()
 
-    if scenario.local_juice_shop:
-        if hostname == DEFAULT_JUICE_SHOP_HOST.lower():
-            raise ValueError(
-                "JUICE_SHOP_HOST is still the XXXXX placeholder"
-            )
-
-        if hostname not in LOCAL_JUICE_SHOP_HOSTS:
-            raise ValueError(
-                f"JUICE_SHOP_HOST is not allowed: {hostname}"
-            )
-
-        # Local Juice Shop deployments.
-        if hostname in {
-            "localhost",
-            "127.0.0.1",
-            "host.docker.internal",
-        }:
-            return (
-                f"http://{hostname}:"
-                f"{LOCAL_JUICE_SHOP_PORT}"
-                f"{scenario.path}"
-            )
-
-        # Explicitly authorized Juice Shop endpoint behind Cloudflare.
-        return f"https://{hostname}{scenario.path}"
-
-    if scenario not in SCENARIOS.values():
+    if hostname == DEFAULT_JUICE_SHOP_HOST.lower():
         raise ValueError(
-            "scenario must be one of the predefined scenarios"
+            "JUICE_SHOP_HOST is still the XXXXX placeholder"
         )
 
-    if not HOST_PATTERN.fullmatch(hostname):
+    if hostname not in ALLOWED_JUICE_SHOP_HOSTS:
         raise ValueError(
-            "DEMO_HOSTNAME must be a DNS hostname, not a URL or path"
+            f"JUICE_SHOP_HOST is not allowed: {hostname}"
         )
 
-    query = urlencode(scenario.query)
-
-    target = f"https://{hostname}{scenario.path}"
-
-    if query:
-        target = f"{target}?{query}"
-
-    parsed = urlsplit(target)
-
-    if parsed.scheme != "https" or parsed.hostname != hostname:
+    if (
+        hostname not in {"localhost", "127.0.0.1", "host.docker.internal"}
+        and not HOST_PATTERN.fullmatch(hostname)
+    ):
         raise ValueError(
-            "target must use HTTPS and match DEMO_HOSTNAME"
+            "JUICE_SHOP_HOST must be a valid hostname"
         )
 
-    return target
+    return hostname
+
+
+def build_target(hostname: str, path: str) -> str:
+    """Build a URL restricted to an explicitly allowed Juice Shop host."""
+
+    hostname = validate_hostname(hostname)
+
+    if hostname in {
+        "localhost",
+        "127.0.0.1",
+        "host.docker.internal",
+    }:
+        return f"http://{hostname}:{LOCAL_JUICE_SHOP_PORT}{path}"
+
+    return f"https://{hostname}{path}"
 
 
 # ---------------------------------------------------------------------------
-# Send request
+# Generic scenarios
 # ---------------------------------------------------------------------------
 
 def send_one(
@@ -260,12 +190,12 @@ def send_one(
     scenario: Scenario,
     index: int,
 ) -> int:
-    """Send one request for a predefined scenario."""
+    """Send one request for brute, stuffing, or scraping."""
 
     data = None
 
     headers = {
-        "User-Agent": "NormalUser/1.0",
+        "User-Agent": "BotManagement-Demo-Simulator/1.0",
         "Accept": "application/json",
     }
 
@@ -286,7 +216,6 @@ def send_one(
 
         headers["Content-Type"] = "application/json"
 
-        # Do not print passwords to logs.
         credential_type = (
             "cloudflare-test"
             if email == CF_TEST_USERNAME
@@ -304,21 +233,14 @@ def send_one(
         data=(
             data
             if data is not None
-            else (
-                b""
-                if scenario.method == "POST"
-                else None
-            )
+            else b"" if scenario.method == "POST" else None
         ),
         method=scenario.method,
         headers=headers,
     )
 
     try:
-        with HTTP.open(
-            request,
-            timeout=10,
-        ) as response:
+        with HTTP.open(request, timeout=10) as response:
             return response.status
 
     except HTTPError as error:
@@ -329,12 +251,6 @@ def send_one(
             f"request failed: {error.reason}"
         ) from error
 
-def spam_bot_login(
-    hostname: str,
-    email: str,
-    password: str,
-) -> tuple[str, int]:
-    target = f"https://{hostname}/rest/user/login"
     except TimeoutError as error:
         raise RuntimeError(
             "request timed out"
@@ -342,13 +258,28 @@ def spam_bot_login(
 
 
 # ---------------------------------------------------------------------------
-# CLI arguments
+# Spam bot scenario
 # ---------------------------------------------------------------------------
 
-    payload = json.dumps({
-        "email": email,
-        "password": password,
-    }).encode("utf-8")
+def spam_bot_login(
+    hostname: str,
+    email: str,
+    password: str,
+) -> tuple[str, int]:
+    """Authenticate the dedicated lab account and return its token and ID."""
+
+    target = build_target(
+        hostname,
+        "/rest/user/login",
+    )
+
+    payload = json.dumps(
+        {
+            "email": email,
+            "password": password,
+        },
+        separators=(",", ":"),
+    ).encode("utf-8")
 
     request = Request(
         target,
@@ -363,65 +294,69 @@ def spam_bot_login(
 
     try:
         with HTTP.open(request, timeout=10) as response:
-            body = json.loads(response.read().decode("utf-8"))
+            body = json.loads(
+                response.read().decode("utf-8")
+            )
+
     except HTTPError as error:
         raise RuntimeError(
             f"login failed with HTTP {error.code}"
         ) from error
+
     except URLError as error:
         raise RuntimeError(
             f"login failed: {error.reason}"
         ) from error
 
-    token = body.get("authentication", {}).get("token")
+    except TimeoutError as error:
+        raise RuntimeError(
+            "login request timed out"
+        ) from error
 
-    if not token:
+    except json.JSONDecodeError as error:
+        raise RuntimeError(
+            "login response was not valid JSON"
+        ) from error
+
+    authentication = body.get("authentication", {})
+
+    token_value = authentication.get("token")
+    user_id = authentication.get("bid")
+
+    if not isinstance(token_value, str) or not token_value:
         raise RuntimeError(
             "login succeeded but no authentication token was returned"
         )
 
-    try:
-        token_parts = token.split(".")
-
-        if len(token_parts) != 3:
-            raise ValueError("unexpected token format")
-
-        encoded_payload = token_parts[1]
-        padding = "=" * (-len(encoded_payload) % 4)
-
-        decoded_payload = base64.urlsafe_b64decode(
-            encoded_payload + padding
-        )
-
-        token_payload = json.loads(
-            decoded_payload.decode("utf-8")
-        )
-
-        user_id = token_payload.get("data", {}).get("id")
-
-        if not isinstance(user_id, int):
-            raise ValueError("user ID is missing from token")
-
-    except (ValueError, KeyError, TypeError, json.JSONDecodeError) as error:
+    if not isinstance(user_id, int):
         raise RuntimeError(
-            "login succeeded but the user ID could not be read from the token"
-        ) from error
+            "login succeeded but no numeric user ID was returned"
+        )
 
-    return token, user_id
+    return token_value, user_id
+
 
 def send_spam_complaint(
     hostname: str,
-    token: str,
+    token_value: str,
     email: str,
     user_id: int,
     message: str,
 ) -> int:
-    target = f"https://{hostname}/api/Complaints/"
+    """Submit one synthetic complaint using the dedicated lab account."""
 
-    payload = json.dumps({
-        "UserId": user_id,
-        "message": message,
-    }).encode("utf-8")
+    target = build_target(
+        hostname,
+        "/api/Complaints/",
+    )
+
+    payload = json.dumps(
+        {
+            "UserId": user_id,
+            "message": message,
+        },
+        separators=(",", ":"),
+    ).encode("utf-8")
 
     request = Request(
         target,
@@ -431,8 +366,8 @@ def send_spam_complaint(
             "User-Agent": "BotManagement-Demo-Simulator/1.0",
             "Accept": "application/json, text/plain, */*",
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {token}",
-            "Cookie": f"token={token}",
+            "Authorization": f"Bearer {token_value}",
+            "Cookie": f"token={token_value}",
             "x-user-email": email,
         },
     )
@@ -440,20 +375,32 @@ def send_spam_complaint(
     try:
         with HTTP.open(request, timeout=10) as response:
             return response.status
+
     except HTTPError as error:
         return error.code
+
     except URLError as error:
         raise RuntimeError(
             f"complaint request failed: {error.reason}"
         ) from error
-        
+
+    except TimeoutError as error:
+        raise RuntimeError(
+            "complaint request timed out"
+        ) from error
+
+
+# ---------------------------------------------------------------------------
+# CLI arguments
+# ---------------------------------------------------------------------------
+
 def parse_args(argv=None):
     """Parse and validate command-line arguments."""
 
     parser = argparse.ArgumentParser(
         description=(
-            "Send a capped sample of synthetic "
-            "requests to the demo."
+            "Send a bounded sample of synthetic "
+            "requests to the authorized demo."
         )
     )
 
@@ -482,6 +429,11 @@ def parse_args(argv=None):
     if args.scenario == "malicious-scraping":
         max_requests = MALICIOUS_SCRAPING_MAX_REQUESTS
         min_interval = MALICIOUS_SCRAPING_MIN_INTERVAL_SECONDS
+
+    elif args.scenario == "spam-bots":
+        max_requests = SPAM_BOT_MAX_REQUESTS
+        min_interval = SPAM_BOT_MIN_INTERVAL_SECONDS
+
     else:
         max_requests = MAX_REQUESTS
         min_interval = MIN_INTERVAL_SECONDS
@@ -502,98 +454,34 @@ def parse_args(argv=None):
 
     return args
 
+
 # ---------------------------------------------------------------------------
-# Main
+# Scenario execution
 # ---------------------------------------------------------------------------
 
-def main(argv=None):
-    """Run the selected bounded simulation."""
+def run_generic_scenario(
+    hostname: str,
+    scenario_name: str,
+    scenario: Scenario,
+    count: int,
+    interval: float,
+) -> int:
+    """Run brute, stuffing, or scraping."""
 
-    args = parse_args(argv)
-    hostname = os.environ.get("DEMO_HOSTNAME", "")
-    if not hostname:
-        print("Set DEMO_HOSTNAME to the authorized Cloudflare demo hostname.", file=sys.stderr)
-        return 2
-    if args.scenario == "spam-bots":
-        email = os.environ.get("SPAM_BOT_EMAIL", "")
-        password = os.environ.get("SPAM_BOT_PASSWORD", "")
-
-    if not email or not password:
-        print(
-            "Set SPAM_BOT_EMAIL and SPAM_BOT_PASSWORD.",
-
-    scenario = SCENARIOS[args.scenario]
-
-    if scenario.local_juice_shop:
-        hostname = os.environ.get(
-            "JUICE_SHOP_HOST",
-            DEFAULT_JUICE_SHOP_HOST,
-        )
-
-    else:
-        hostname = os.environ.get(
-            "DEMO_HOSTNAME",
-            "",
-        )
-
-        if not hostname:
-            print(
-                "Set DEMO_HOSTNAME to the "
-                "authorized Cloudflare demo hostname.",
-                file=sys.stderr,
-            )
-            return 2
-
-    try:
-        target = build_target(
-            hostname,
-            scenario,
-        )
-
-    except ValueError as error:
-        print(
-            f"Configuration error: {error}",
-            file=sys.stderr,
-        )
-        return 2
-
-    try:
-        token, user_id = spam_bot_login(
-            hostname,
-            email,
-            password,
-        )
-    except RuntimeError as error:
-        print(
-            f"Spam bot login failed: {error}",
-            file=sys.stderr,
-        )
-        return 1
+    target = build_target(
+        hostname,
+        scenario.path,
+    )
 
     print(
-        f"Spam bot login successful. user_id={user_id}"
-        f"scenario={args.scenario} "
-        f"requests={args.count} "
-        f"interval_seconds={args.interval} "
+        f"scenario={scenario_name} "
+        f"requests={count} "
+        f"interval_seconds={interval} "
         f"target={target}"
     )
 
-    for index in range(args.count):
-        message = (
-            f"Spam Bot Demo Complaint {index + 1:02d}"
-        )
-
+    for index in range(count):
         try:
-            status = send_spam_complaint(
-                hostname,
-                token,
-                email,
-                user_id,
-                message,
-            )
-        except RuntimeError as error:
-            print(
-                f"Complaint {index + 1}/{args.count} "
             status = send_one(
                 target,
                 scenario,
@@ -602,21 +490,148 @@ def main(argv=None):
 
         except RuntimeError as error:
             print(
-                f"Request {index + 1}/{args.count} "
+                f"Request {index + 1}/{count} failed: {error}",
+                file=sys.stderr,
+            )
+            return 1
+
+        print(
+            f"request={index + 1}/{count} "
+            f"http_status={status}"
+        )
+
+        if index + 1 < count:
+            time.sleep(interval)
+
+    return 0
+
+
+def run_spam_bot_scenario(
+    hostname: str,
+    count: int,
+    interval: float,
+) -> int:
+    """Run the authenticated, bounded complaint-spam simulation."""
+
+    email = os.environ.get(
+        "SPAM_BOT_EMAIL",
+        "",
+    )
+
+    password = os.environ.get(
+        "SPAM_BOT_PASSWORD",
+        "",
+    )
+
+    if not email or not password:
+        print(
+            "Set SPAM_BOT_EMAIL and SPAM_BOT_PASSWORD "
+            "to a dedicated lab account.",
+            file=sys.stderr,
+        )
+        return 2
+
+    try:
+        token_value, user_id = spam_bot_login(
+            hostname,
+            email,
+            password,
+        )
+
+    except RuntimeError as error:
+        print(
+            f"Spam bot login failed: {error}",
+            file=sys.stderr,
+        )
+        return 1
+
+    target = build_target(
+        hostname,
+        "/api/Complaints/",
+    )
+
+    print(
+        f"scenario=spam-bots "
+        f"requests={count} "
+        f"interval_seconds={interval} "
+        f"target={target} "
+        f"user_id={user_id}"
+    )
+
+    for index in range(count):
+        message = (
+            f"Synthetic spam demo complaint "
+            f"{index + 1:02d}"
+        )
+
+        try:
+            status = send_spam_complaint(
+                hostname,
+                token_value,
+                email,
+                user_id,
+                message,
+            )
+
+        except RuntimeError as error:
+            print(
+                f"Complaint {index + 1}/{count} "
                 f"failed: {error}",
                 file=sys.stderr,
             )
             return 1
 
         print(
-            f"complaint={index + 1}/{args.count} 
+            f"complaint={index + 1}/{count} "
             f"http_status={status}"
         )
 
-        if index + 1 < args.count:
-            time.sleep(args.interval)
+        if index + 1 < count:
+            time.sleep(interval)
 
     return 0
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def main(argv=None):
+    """Run the selected bounded simulation."""
+
+    args = parse_args(argv)
+
+    hostname = os.environ.get(
+        "JUICE_SHOP_HOST",
+        DEFAULT_JUICE_SHOP_HOST,
+    )
+
+    try:
+        hostname = validate_hostname(hostname)
+
+    except ValueError as error:
+        print(
+            f"Configuration error: {error}",
+            file=sys.stderr,
+        )
+        return 2
+
+    scenario = SCENARIOS[args.scenario]
+
+    if args.scenario == "spam-bots":
+        return run_spam_bot_scenario(
+            hostname,
+            args.count,
+            args.interval,
+        )
+
+    return run_generic_scenario(
+        hostname,
+        args.scenario,
+        scenario,
+        args.count,
+        args.interval,
+    )
 
 
 if __name__ == "__main__":
