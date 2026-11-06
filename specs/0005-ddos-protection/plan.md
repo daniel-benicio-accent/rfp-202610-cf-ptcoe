@@ -171,6 +171,22 @@ Run the dry run first and read it; submit only once it lists the quotas and
 values you expect. Approval is on Google's side, so the fleet scales past the
 old limit only after the requests are granted.
 
+**On Azure (`terraform/azure-ebc`)** the caps are the node VM family's vCPUs
+(`StandardDpdsv6Family` for `Standard_D2pds_v6`), total regional vCPUs, and
+Standard public IPv4 addresses. A capped scale-up shows as a `NotTriggerScaleUp`
+or `FailedScaleUp` event, not as `Insufficient cpu` alone.
+[`request_aks_quotas.sh`](../../demos/demohpingkali/request_aks_quotas.sh) is
+the counterpart, with the same dry-run default and rules. It reads usage and
+limits from `az vm list-usage` / `az network list-usages`, and registers the
+`Microsoft.Quota` provider before its first request. It needs `az`, logged in to
+the target subscription, and `jq`; Cloud Shell has both.
+
+```bash
+./request_aks_quotas.sh                  # dry run: usage, limit and required per quota
+DRY_RUN=false ./request_aks_quotas.sh    # submit the requests
+./request_aks_quotas.sh watch            # limits and request state, every 60s
+```
+
 ### Inspect the cluster and the source pods
 
 ```bash
