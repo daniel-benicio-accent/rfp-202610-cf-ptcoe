@@ -185,3 +185,5 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+scripts/baseline.log
+scripts/schema-validation-check.log
