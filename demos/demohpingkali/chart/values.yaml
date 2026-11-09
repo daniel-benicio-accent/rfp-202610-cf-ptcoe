@@ -1,0 +1,56 @@
+# terraform/gcp/app.tf sets image, command, replicas and chartHash from the
+# module's variables. The defaults here are what `helm template` renders on its
+# own.
+
+image: docker.io/kalilinux/kali-experimental:arm64
+
+# Overrides the image's entrypoint (and its CMD). The Kali image runs no
+# server, and its default shell exits at once without a terminal, so the pod
+# would crash-loop; sleep keeps it up to be entered with `kubectl exec`. An
+# empty list runs the image's own entrypoint, with the HTTP probes.
+command: ["sleep", "infinity"]
+
+replicas:
+  min: 1
+  max: 20
+  # Percentage of the hping container's CPU request, not the pod's: the HPA
+  # measures the hping container alone, so the sidecar does not dilute it.
+  cpuTargetPercent: 60
+
+# Sized for tsenart's Vegeta, the load generator this pod runs. Vegeta is a Go
+# HTTP engine: almost idle at rest, CPU-bound while attacking. The request is
+# kept modest on purpose — the HPA scales on utilisation of this request, so a
+# small one lets CPU climb past target and add pods under load. The limit is the
+# ceiling one pod may burst to before the HPA spreads the work over more pods;
+# memory covers Vegeta's in-flight result buffers.
+resources:
+  requests:
+    cpu: 250m
+    memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 256Mi
+
+# Set by Terraform from the node machine type: kubernetes.io/arch pinned to
+# arm64 or amd64, plus a toleration for GKE's Arm node taint.
+nodeSelector: {}
+tolerations: []
+
+gateway:
+  # Matches the pods of the "istio-ingressgateway" release in istio.tf.
+  selector:
+    istio: ingressgateway
+  # Any Host header, so the page answers on a bare node IP. Narrow it to the
+  # real hostname once there is one.
+  hosts:
+    - "*"
+
+# Environment variables of the hping container, through the <release>-env
+# ConfigMap. ConfigMap values are strings, so numbers are quoted.
+env:
+  tango: "1111"
+  papa: "11"
+
+# Set by Terraform so that edits to this chart show up in a plan. Unused by
+# the templates.
+chartHash: ""

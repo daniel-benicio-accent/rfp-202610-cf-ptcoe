@@ -1,0 +1,13 @@
+# maxUnavailable rather than minAvailable: with a single replica, minAvailable 1
+# would forbid every eviction, and the autoscaler could never drain that node.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "nginx-site.labels" . | nindent 4 }}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      {{- include "nginx-site.selectorLabels" . | nindent 6 }}

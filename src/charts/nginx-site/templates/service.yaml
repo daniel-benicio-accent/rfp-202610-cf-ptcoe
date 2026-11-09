@@ -1,0 +1,16 @@
+# ClusterIP only. The way in from outside is the ingress gateway's NodePort;
+# this Service is what the gateway routes to.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "nginx-site.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "nginx-site.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      appProtocol: http

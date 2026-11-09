@@ -1,0 +1,14 @@
+# Environment variables for the hping container, one per key of env in
+# values.yaml. The Deployment loads them all through envFrom, so a new key
+# needs no template change. A container reads its environment once, at start:
+# the checksum/env annotation rolls the pods when a value changes.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "{{ .Release.Name }}-env"
+  labels:
+    {{- include "hping-site.labels" . | nindent 4 }}
+data:
+  {{- range $name, $value := .Values.env }}
+  {{ $name }}: {{ $value | quote }}
+  {{- end }}
