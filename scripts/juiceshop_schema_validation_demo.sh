@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #
-# Schema validation demo harness for OWASP Juice Shop behind Cloudflare.
+# Schema validation demo harness for OWASP Juice Shop and the go-httpbin demo
+# API behind Cloudflare.
 #
 # Sends pairs of compliant / non-compliant requests and reports whether each
 # one was stopped at the Cloudflare edge or reached the origin. It also sends
@@ -9,7 +10,13 @@
 #
 # Usage:
 #   BASE_URL=https://app-pt-cybersec-coe-juiceshop.pt-accenture.cftenant.com \
+#   API_BASE_URL=https://api.<zone> \
 #     ./juiceshop_schema_validation_demo.sh
+#
+# API_BASE_URL is the go-httpbin hostname from httpbin-api.yaml. Without it,
+# the httpbin cases are skipped. Its /anything/partner/ route requires mTLS:
+# set API_CLIENT_CERT and API_CLIENT_KEY (PEM files) to run those two cases,
+# or SKIP_MTLS=on to leave them out even when a certificate is set.
 #
 # Set FALLTHROUGH=on once a fallthrough rule blocks requests that match no
 # saved endpoint (scope it to /api/ and /rest/, or it blocks the front end
@@ -22,11 +29,20 @@
 set -euo pipefail
 
 readonly BASE_URL="${BASE_URL:?Set BASE_URL to the public Cloudflare-proxied URL}"
+readonly API_BASE_URL="${API_BASE_URL:-}"
+readonly API_CLIENT_CERT="${API_CLIENT_CERT:-}"
+readonly API_CLIENT_KEY="${API_CLIENT_KEY:-}"
+readonly SKIP_MTLS="${SKIP_MTLS:-off}"
 readonly FALLTHROUGH="${FALLTHROUGH:-off}"
 readonly WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "${WORK_DIR}"' EXIT
 
 failures=0
+
+# Where the next run_case calls go, and extra curl arguments for them
+# (the client certificate for mTLS routes). main() switches these per section.
+case_base="${BASE_URL}"
+case_extra_args=()
 
 print_row() {
   printf '%-48s %-10s %-6s %-12s %s\n' "$@"
@@ -53,14 +69,15 @@ classify_response() {
 run_case() {
   local name="$1" expected="$2" method="$3" path="$4" body="${5:-}"
   local headers_file="${WORK_DIR}/headers" body_file="${WORK_DIR}/body"
-  local -a curl_args=(-s -o "${body_file}" -D "${headers_file}" -w '%{http_code}' -X "${method}")
+  local -a curl_args=(-s -o "${body_file}" -D "${headers_file}" -w '%{http_code}' -X "${method}"
+    ${case_extra_args[@]+"${case_extra_args[@]}"})
 
   if [[ -n "${body}" ]]; then
     curl_args+=(-H 'Content-Type: application/json' --data "${body}")
   fi
 
   local status
-  status="$(curl "${curl_args[@]}" "${BASE_URL}${path}")"
+  status="$(curl "${curl_args[@]}" "${case_base}${path}")"
 
   local actual ray verdict
   actual="$(classify_response "${status}" "${body_file}")"
@@ -126,6 +143,48 @@ main() {
     run_case "undeclared endpoint"           edge-block GET "/api/zzz-undeclared"
   else
     skip_case "undeclared endpoint" edge-block "set FALLTHROUGH=on"
+  fi
+
+  # go-httpbin demo API (httpbin-api.yaml). /anything/* echoes any request
+  # with 200, so every non-200 here comes from Cloudflare.
+  if [[ -z "${API_BASE_URL}" ]]; then
+    skip_case "httpbin API: all cases" "-" "set API_BASE_URL"
+  else
+    case_base="${API_BASE_URL}"
+
+    # Query parameter: page must be an integer from 1 to 100.
+    run_case "httpbin: page 1"               origin     GET "/get?page=1"
+    run_case "httpbin: page out of range"    edge-block GET "/get?page=500"
+    run_case "httpbin: page is not a number" edge-block GET "/get?page=abc"
+
+    # Order body: SKU format, quantity range, and no undeclared fields.
+    run_case "order: valid"                  origin     POST "/anything/orders" \
+      '{"sku":"ABC-1234","quantity":2,"customer_email":"buyer@example.com"}'
+    run_case "order: negative quantity"      edge-block POST "/anything/orders" \
+      '{"sku":"ABC-1234","quantity":-5}'
+    run_case "order: malformed SKU"          edge-block POST "/anything/orders" \
+      '{"sku":"abc-1","quantity":1}'
+    run_case "order: undeclared field"       edge-block POST "/anything/orders" \
+      '{"sku":"ABC-1234","quantity":1,"unit_price":0}'
+
+    # Order lookup: path parameter must be a positive integer.
+    run_case "order: numeric id"             origin     GET "/anything/orders/42"
+    run_case "order: non-numeric id"         edge-block GET "/anything/orders/abc"
+
+    # Partner resource: slug format. The route also requires a client
+    # certificate, so without one both cases would be refused by mTLS instead.
+    if [[ "${SKIP_MTLS}" == "on" ]]; then
+      skip_case "partner: valid / malformed slug" "-" "SKIP_MTLS=on"
+    elif [[ -n "${API_CLIENT_CERT}" && -n "${API_CLIENT_KEY}" ]]; then
+      case_extra_args=(--cert "${API_CLIENT_CERT}" --key "${API_CLIENT_KEY}")
+      run_case "partner: valid slug"         origin     GET "/anything/partner/acme-corp"
+      run_case "partner: malformed slug"     edge-block GET "/anything/partner/Acme_Corp"
+      case_extra_args=()
+    else
+      skip_case "partner: valid / malformed slug" "-" "set API_CLIENT_CERT/KEY"
+    fi
+
+    case_base="${BASE_URL}"
   fi
 
   printf '\n%d case(s) did not match the expected outcome.\n' "${failures}"
