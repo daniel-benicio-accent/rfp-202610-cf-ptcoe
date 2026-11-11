@@ -1,0 +1,365 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Cloudflare Learned Schema for app-pt-cybersec-coe-juiceshop.pt-accenture.cftenant.com",
+    "version": "0.1.0"
+  },
+  "servers": [
+    {
+      "url": "https://app-pt-cybersec-coe-juiceshop.pt-accenture.cftenant.com"
+    }
+  ],
+  "components": {},
+  "paths": {
+    "/api/Products/{var1}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "var1",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "A response"
+          }
+        },
+        "x-cf-operation-id": "0448dc7b-97c2-462e-a508-9e67342aed81",
+        "x-cf-threshold": null,
+        "operationId": "0448dc7b-97c2-462e-a508-9e67342aed81"
+      }
+    },
+    "/api/Cards/": {
+      "post": {
+        "responses": {
+          "default": {
+            "description": "A response"
+          }
+        },
+        "x-cf-operation-id": "0fd175fd-d111-4061-8999-1593ed3123fb",
+        "x-cf-threshold": null,
+        "operationId": "0fd175fd-d111-4061-8999-1593ed3123fb"
+      }
+    },
+    "/socket.io/": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "A response"
+          }
+        },
+        "x-cf-operation-id": "137d1c39-80d5-43c4-914d-ccb373f473a7",
+        "x-cf-threshold": null,
+        "operationId": "137d1c39-80d5-43c4-914d-ccb373f473a7"
+      }
+    },
+    "/api/Users/": {
+      "post": {
+        "responses": {
+          "default": {
+            "description": "A response"
+          }
+        },
+        "x-cf-operation-id": "29dd5a62-aa75-4615-b547-b31ef6d755f3",
+        "x-cf-threshold": null,
+        "operationId": "29dd5a62-aa75-4615-b547-b31ef6d755f3"
+      }
+    },
+    "/rest/admin/application-configuration": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "A response"
+          }
+        },
+        "x-cf-operation-id": "2fa5501e-f1dd-47de-ad59-3995a09c4a08",
+        "x-cf-threshold": null,
+        "operationId": "2fa5501e-f1dd-47de-ad59-3995a09c4a08"
+      }
+    },
+    "/api/Deliverys": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "A response"
+          }
+        },
+        "x-cf-operation-id": "3761bbaa-0a29-4d47-9da4-90a4854b51cd",
+        "x-cf-threshold": null,
+        "operationId": "3761bbaa-0a29-4d47-9da4-90a4854b51cd"
+      }
+    },
+    "/rest/languages": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "A response"
+          }
+        },
+        "x-cf-operation-id": "45d9c41f-ee57-4ca2-8433-f971a53ded2e",
+        "x-cf-threshold": null,
+        "operationId": "45d9c41f-ee57-4ca2-8433-f971a53ded2e"
+      }
+    },
+    "/api/Complaints/": {
+      "post": {
+        "responses": {
+          "default": {
+            "description": "A response"
+          }
+        },
+        "x-cf-operation-id": "550b3387-78ba-4bbd-b516-b08e82a7409b",
+        "x-cf-threshold": null,
+        "operationId": "550b3387-78ba-4bbd-b516-b08e82a7409b"
+      }
+    },
+    "/rest/2fa/status": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "A response"
+          }
+        },
+        "x-cf-operation-id": "574c346b-5479-48c4-af97-ef08830e3347",
+        "x-cf-threshold": null,
+        "operationId": "574c346b-5479-48c4-af97-ef08830e3347"
+      }
+    },
+    "/api/BasketItems/": {
+      "post": {
+        "responses": {
+          "default": {
+            "description": "A response"
+          }
+        },
+        "x-cf-operation-id": "679d5eda-c2a5-462d-a4c9-036acae52fb3",
+        "x-cf-threshold": null,
+        "operationId": "679d5eda-c2a5-462d-a4c9-036acae52fb3"
+      }
+    },
+    "/api/Cards/{var1}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "var1",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "A response"
+          }
+        },
+        "x-cf-operation-id": "6dcbb578-c76f-4018-81cb-efd50809ba45",
+        "x-cf-threshold": null,
+        "operationId": "6dcbb578-c76f-4018-81cb-efd50809ba45"
+      }
+    },
+    "/api/Feedbacks/": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "A response"
+          }
+        },
+        "x-cf-operation-id": "cd15f4e8-9301-41ba-bf97-bfffe23b2fcf",
+        "x-cf-threshold": null,
+        "operationId": "cd15f4e8-9301-41ba-bf97-bfffe23b2fcf"
+      },
+      "post": {
+        "responses": {
+          "default": {
+            "description": "A response"
+          }
+        },
+        "x-cf-operation-id": "70293de1-d53e-463c-bb4b-19776cc1116b",
+        "x-cf-threshold": null,
+        "operationId": "70293de1-d53e-463c-bb4b-19776cc1116b"
+      }
+    },
+    "/api/Challenges/": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "A response"
+          }
+        },
+        "x-cf-operation-id": "7c7fd408-5fb4-43d8-8185-3e75b1a2ff61",
+        "x-cf-threshold": null,
+        "operationId": "7c7fd408-5fb4-43d8-8185-3e75b1a2ff61"
+      }
+    },
+    "/rest/user/security-question": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "A response"
+          }
+        },
+        "x-cf-operation-id": "7e59c14e-1779-4ccf-ac91-beb5b7acfbfa",
+        "x-cf-threshold": null,
+        "operationId": "7e59c14e-1779-4ccf-ac91-beb5b7acfbfa"
+      }
+    },
+    "/rest/admin/application-version": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "A response"
+          }
+        },
+        "x-cf-operation-id": "81ccc348-6678-4a3a-92c2-186d11145981",
+        "x-cf-threshold": null,
+        "operationId": "81ccc348-6678-4a3a-92c2-186d11145981"
+      }
+    },
+    "/rest/continue-code": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "A response"
+          }
+        },
+        "x-cf-operation-id": "8e0a0ce9-ce09-4177-9533-0e022b431fb5",
+        "x-cf-threshold": null,
+        "operationId": "8e0a0ce9-ce09-4177-9533-0e022b431fb5"
+      }
+    },
+    "/api/SecurityQuestions/": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "A response"
+          }
+        },
+        "x-cf-operation-id": "ac4d8fb6-8f71-440b-8c28-4e9430d7c5bc",
+        "x-cf-threshold": null,
+        "operationId": "ac4d8fb6-8f71-440b-8c28-4e9430d7c5bc"
+      }
+    },
+    "/api/Cards": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "A response"
+          }
+        },
+        "x-cf-operation-id": "ac7e5ba8-b429-4eee-831b-21ad4534bd13",
+        "x-cf-threshold": null,
+        "operationId": "ac7e5ba8-b429-4eee-831b-21ad4534bd13"
+      }
+    },
+    "/rest/user/login": {
+      "post": {
+        "responses": {
+          "default": {
+            "description": "A response"
+          }
+        },
+        "x-cf-operation-id": "d934f50b-2ed2-41c7-b261-f2505932ae05",
+        "x-cf-threshold": null,
+        "operationId": "d934f50b-2ed2-41c7-b261-f2505932ae05"
+      }
+    },
+    "/api/Quantitys/": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "A response"
+          }
+        },
+        "x-cf-operation-id": "d9a571db-e6d8-4f81-8622-d0de8cdf4624",
+        "x-cf-threshold": null,
+        "operationId": "d9a571db-e6d8-4f81-8622-d0de8cdf4624"
+      }
+    },
+    "/rest/captcha/": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "A response"
+          }
+        },
+        "x-cf-operation-id": "e7d0d32a-f108-4c26-93c5-acca6d666493",
+        "x-cf-threshold": null,
+        "operationId": "e7d0d32a-f108-4c26-93c5-acca6d666493"
+      }
+    },
+    "/api/Addresss": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "A response"
+          }
+        },
+        "x-cf-operation-id": "e84c54e0-44c2-4694-a56c-ec8e8cd1e07b",
+        "x-cf-threshold": null,
+        "operationId": "e84c54e0-44c2-4694-a56c-ec8e8cd1e07b"
+      }
+    },
+    "/rest/products/search": {
+      "get": {
+        "responses": {
+          "default": {
+            "description": "A response"
+          }
+        },
+        "x-cf-operation-id": "eaa36d84-d1d0-45ce-bb75-df757509f41b",
+        "x-cf-threshold": null,
+        "operationId": "eaa36d84-d1d0-45ce-bb75-df757509f41b"
+      }
+    },
+    "/rest/basket/{var1}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "var1",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "A response"
+          }
+        },
+        "x-cf-operation-id": "f4fdcf0c-1da1-4d29-a4db-3349cdef30d9",
+        "x-cf-threshold": null,
+        "operationId": "f4fdcf0c-1da1-4d29-a4db-3349cdef30d9"
+      }
+    },
+    "/api/BasketItems/{var1}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "var1",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "description": "A response"
+          }
+        },
+        "x-cf-operation-id": "f96bcf0d-70bf-4646-a3d7-9b1af9e870c0",
+        "x-cf-threshold": null,
+        "operationId": "f96bcf0d-70bf-4646-a3d7-9b1af9e870c0"
+      }
+    }
+  }
+}
