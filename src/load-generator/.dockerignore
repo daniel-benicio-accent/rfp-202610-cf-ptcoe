@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*.log
+*.tmp
+
+.venv/
+venv/
+
+.git/
+.gitignore
+
+.env
+.env.*
+!.env.example
+
+README.md

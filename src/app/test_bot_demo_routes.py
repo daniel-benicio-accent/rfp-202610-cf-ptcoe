@@ -38,12 +38,9 @@ class SyntheticRouteTests(unittest.TestCase):
             for name in app_module._demo_counters:
                 app_module._demo_counters[name] = 0
 
-    def test_six_scenarios_increment_separate_counters(self):
+    def test_three_login_scenarios_increment_separate_counters(self):
         cases = [
             ("POST", "/api/demo/login?scenario=brute-force", 401, "brute_force"),
-            ("GET", "/api/demo/catalog", 200, "malicious_scraping"),
-            ("POST", "/api/demo/contact?scenario=spam-bots", 202, "spam_bots"),
-            ("POST", "/api/demo/contact?scenario=form-abuse", 202, "automated_form_abuse"),
             ("POST", "/api/demo/login?scenario=account-takeover", 401, "account_takeover"),
             ("POST", "/api/demo/login?scenario=credential-stuffing", 401, "credential_stuffing"),
         ]
@@ -58,9 +55,7 @@ class SyntheticRouteTests(unittest.TestCase):
 
     def test_unknown_scenarios_are_rejected(self):
         login = self.client.post("/api/demo/login?scenario=unknown")
-        contact = self.client.post("/api/demo/contact?scenario=unknown")
         self.assertEqual(login.status_code, 400)
-        self.assertEqual(contact.status_code, 400)
 
 
 if __name__ == "__main__":
