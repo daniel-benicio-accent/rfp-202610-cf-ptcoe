@@ -2,15 +2,17 @@
 
 | Field   | Value |
 | ------- | ----- |
-| Updated | 2026-10-21 |
+| Updated | 2026-11-12 |
 
-Blocked on `spec.md` reaching `Approved`. Task 1 gates the whole backlog, not
-just this spec.
+The foundation is delivered on the target domain by João Grilo (task 14). The
+documents stay `Draft`. The tasks below track the repository's own templates
+and scripts, and the parts of the delivered foundation that are not yet in
+Terraform/OpenTofu.
 
 | # | Task | Covers | Status |
 | - | ---- | ------ | ------ |
-| 1 | Confirm the demo domain and that it is delegated to Cloudflare | FR-5 | blocked |
-| 2 | Verify the Bot Management add-on is active on that specific zone, not just the account | FR-6 | blocked on 1 |
+| 1 | Confirm the demo domain and that it is delegated to Cloudflare | FR-5 | done — `pt-accenture.cftenant.com`, proxied through Cloudflare, recorded 2026-11-12 |
+| 2 | Verify the Bot Management add-on is active on that specific zone, not just the account | FR-6 | todo — API Shield is confirmed on the zone by `0006`; Bot Management not checked yet |
 | 3 | ~~Decide the FR-7 origin-lockdown option~~ | FR-7 | done — shared-secret header, 2026-10-21 |
 | 4 | Reimplement the origin app under `src/app/` as tracked files | FR-3, FR-4 | done — Flask UI plus REST API, 2026-10-21 |
 | 5 | Write the GCP Terraform as a template, keeping the `time_sleep` waits | FR-3 | done — `src/terraform/_templates/gcp/`, schema-validated |
@@ -25,6 +27,8 @@ just this spec.
 | 11 | Port the Vegeta load generator to `src/load-generator/` | FR-8 | todo |
 | 12 | Establish the `enable_<feature>` toggle pattern with one no-op module | FR-6 | done — `scripts/bootstrap-terraform.sh` bakes it into every generated module |
 | 13 | End-to-end rehearsal: bootstrap, verify, teardown on a throwaway project | all | part — bootstrap and verify done on `rfp-202610-cfdemo`; teardown not yet exercised against live resources |
+| 14 | Deliver the foundation on the target domain | FR-5 | done — João Grilo; the domain is proxied, and the architecture looks sound on review. Recorded 2026-11-12 |
+| 15 | Write the delivered architecture into `plan.md`, and bring the parts built outside Terraform/OpenTofu under the templates | FR-3, NFR-4 | todo — with João Grilo |
 
 ## Definition of done
 

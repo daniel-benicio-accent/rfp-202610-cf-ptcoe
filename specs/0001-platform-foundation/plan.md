@@ -2,7 +2,13 @@
 
 > Draft proposal. The approach below (GCP, OpenTofu, the bootstrap/nuke script
 > pair) was set by the project owner, so it is recorded here ahead of spec
-> approval. Nothing is built until `spec.md` reaches `Approved`.
+> approval.
+>
+> **Delivered, recorded 12 November 2026:** João Grilo delivered the foundation
+> on `pt-accenture.cftenant.com`, and the domain is proxied through Cloudflare.
+> On review, the architecture looks sound. Not all of it is covered by
+> Terraform/OpenTofu. The documents stay `Draft` until the delivered
+> architecture is written up here (task 15).
 >
 > **Target moved, 29 October 2026:** the client demo runs in the Azure EBC
 > tenant under `pt-accenture.cftenant.com`. Everything below describes the GCP
@@ -13,7 +19,7 @@
 | Field   | Value |
 | ------- | ----- |
 | Status  | Draft |
-| Updated | 2026-10-29 |
+| Updated | 2026-11-12 |
 
 ## Approach
 
@@ -119,13 +125,14 @@ envs/                           gitignored: per-environment config and local sta
 
 | Risk | Impact | Mitigation |
 | ---- | ------ | ---------- |
-| Target zone `pt-accenture.cftenant.com` not yet active on Cloudflare, or held in an unexpected account | Blocks the whole backlog on the target | Domain decided 2026-10-29; confirm the zone's status, account and plan before anything else. Everything downstream waits on it. |
+| ~~Target zone `pt-accenture.cftenant.com` not yet active on Cloudflare~~ | — | Retired 2026-11-12: the foundation is delivered on the zone and the domain is proxied. Which account holds it is still to record. |
+| Parts of the delivered foundation are outside Terraform/OpenTofu | A clean checkout cannot rebuild the target (NFR-4), and drift goes unnoticed | List those parts with João Grilo, then bring them under the templates (task 15). |
 | The Azure port is not ready by the demo date | The demo would have to run on the personal lab and domain, which is not where the client should see it | Track it as the backlog task. Port the origin first; edge features follow the zone. |
 | The edge secret leaks, or is reused across environments | A "bypass is impossible" claim is falsified mid-demo | Generate per environment, keep it in the operator's environment only, rotate by re-applying. Do not screen-share the Cloud Run environment variables. |
 | Audience reads the header control as our production recommendation | Credibility damage in a security bid | State the production pattern explicitly in both the demo narrative and the RFP text. |
 | GCP IAM propagation flakiness | Bootstrap fails intermittently | Carry over the `time_sleep` waits unchanged. They exist for exactly this reason. |
 | ~~Cloudflare provider v5 renamed and restructured many resources relative to v4~~ | — | Retired. Modules are written for v5 and schema-validated against 5.28.1 with `tofu validate`. Runtime behaviour still unproven, since no zone exists. |
-| Enterprise entitlement assumed but not verified on the actual zone | `0002` and `0006` specified against features we cannot use | Confirm the add-on is active on the demo zone, not just on the account, as part of task 2. |
+| Enterprise entitlement assumed but not verified on the actual zone | `0002` and `0006` specified against features we cannot use | API Shield is confirmed on the target zone by the `0006` PoC. The Bot Management add-on still has to be confirmed on the zone, not just on the account (task 2). |
 
 ## Test and demo strategy
 
@@ -141,8 +148,9 @@ envs/                           gitignored: per-environment config and local sta
 
 Stand-up order:
 
-1. Confirm `pt-accenture.cftenant.com` is active on Cloudflare, which account
-   holds it, and that the Bot Management add-on is live on that zone.
+1. ~~Confirm `pt-accenture.cftenant.com` is active on Cloudflare~~: done, the
+   domain is delivered and proxied. Still to confirm: which account holds it,
+   and that the Bot Management add-on is live on that zone.
 2. Reimplement the app and the GCP Terraform under `src/` as tracked files.
 3. Add the GCP pre-flight to the wizard (task 6b); the rendering half is done.
 4. Add the Cloudflare zone module and prove FR-5.

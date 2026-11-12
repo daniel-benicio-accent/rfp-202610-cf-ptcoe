@@ -1,0 +1,141 @@
+openapi: 3.0.3
+info:
+  title: OWASP Juice Shop - Schema Validation Demo
+  version: 1.1.0
+  description: >
+    Minimal positive security model for selected Juice Shop endpoints.
+    Each constraint maps to a known Juice Shop abuse case that signature-based
+    WAF rules cannot reliably detect (negative quantity, zero-star feedback,
+    type confusion, injection through free-text fields).
+servers:
+  - url: https://app-pt-cybersec-coe-juiceshop.pt-accenture.cftenant.com
+
+paths:
+  /rest/user/login:
+    post:
+      operationId: login
+      summary: Authenticate a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Authenticated
+
+  /rest/products/search:
+    get:
+      operationId: searchProducts
+      summary: Search the product catalog
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 50
+            # Allows common product-name punctuation; still rejects quotes,
+            # parentheses and semicolons used in Juice Shop's UNION-based SQLi.
+            pattern: '^[A-Za-z0-9 .,&!+-]*$'
+      responses:
+        '200':
+          description: Search results
+
+  /api/Products/{id}:
+    get:
+      operationId: getProduct
+      summary: Get a product by id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Product
+
+  # Trailing slash is intentional: the Juice Shop frontend calls these paths with it.
+  /api/BasketItems/:
+    post:
+      operationId: addBasketItem
+      summary: Add a product to a basket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BasketItemRequest'
+      responses:
+        '200':
+          description: Item added
+
+  /api/Feedbacks/:
+    post:
+      operationId: createFeedback
+      summary: Submit customer feedback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedbackRequest'
+      responses:
+        '201':
+          description: Feedback created
+
+components:
+  schemas:
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          minLength: 3
+          maxLength: 100
+          pattern: '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+$'
+        password:
+          type: string
+          minLength: 1
+          maxLength: 128
+
+    BasketItemRequest:
+      type: object
+      required: [ProductId, BasketId, quantity]
+      properties:
+        ProductId:
+          type: integer
+          minimum: 1
+        BasketId:
+          type: string
+          pattern: '^[0-9]+$'
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 10
+
+    FeedbackRequest:
+      type: object
+      required: [captchaId, captcha, comment, rating]
+      properties:
+        UserId:
+          type: integer
+          minimum: 1
+        captchaId:
+          type: integer
+          minimum: 0
+        captcha:
+          type: string
+          maxLength: 10
+        comment:
+          type: string
+          minLength: 1
+          maxLength: 300
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5

@@ -58,7 +58,7 @@ target tenant and domain (see `0001`); a protection defined on the account
 carries over to any Enterprise zone in it, where one defined on the zone would
 have to be rebuilt.
 
-Depends on `0001`. A WAF demo is only honest if the origin cannot be reached
+Builds on `0001`, which is delivered. A WAF demo is only honest if the origin cannot be reached
 directly — otherwise a "blocked" request is simply retried against the VM's IP
 and the whole point collapses. The platform's origin lockdown
 (`lock_origin_to_cloudflare`) is therefore a precondition, not a detail, and the

@@ -5,8 +5,16 @@
 | Status    | Draft |
 | Owner     | d.de.freitas.alves |
 | Created   | 2026-10-21 |
-| Updated   | 2026-10-29 |
+| Updated   | 2026-11-12 |
 | AI usage  | None |
+
+> **Note — delivered, recorded 12 November 2026.** The foundation has been
+> delivered on the target domain **`pt-accenture.cftenant.com`** by
+> **João Grilo**, and the domain is proxied through Cloudflare. On review, the
+> architecture looks sound. Not all of it is covered by Terraform/OpenTofu yet,
+> so a clean checkout cannot rebuild it on its own (FR-3, NFR-4). This spec
+> stays `Draft` until the delivered architecture is written up here and the
+> gap in code is closed.
 
 > **Note — target environment, 29 October 2026.** The demo moves to the
 > **Azure EBC tenant**, on the domain **`pt-accenture.cftenant.com`**. Until it
@@ -149,7 +157,7 @@ per feature.
 
 - [ ] Bootstrap run from a clean checkout yields a reachable HTTPS hostname served through Cloudflare.
 - [ ] For the client demo, that hostname is under `pt-accenture.cftenant.com` and the origin runs in the Azure EBC tenant.
-- [ ] `curl` against the Cloudflare hostname returns the app and the response carries Cloudflare edge headers.
+- [x] `curl` against the Cloudflare hostname returns the app and the response carries Cloudflare edge headers. _(Target domain: every response in the `0006` PoC, 8–10 Nov 2026, carried a `cf-ray` header.)_
 - [ ] `curl` against the origin URL directly is refused (FR-7).
 - [ ] The load generator reports requests sent, and origin-side request count can be read for the same window.
 - [ ] Enabling and disabling one edge feature requires no environment rebuild.
@@ -160,8 +168,8 @@ per feature.
 
 | Question | Owner | Resolution |
 | -------- | ----- | ---------- |
-| Which domain hosts the demo, and is it already delegated to Cloudflare? The CapAct MVP ran under `personal-domain-2`, and the current lab under `personal-domain-1`; neither is a suitable home for a client-facing RFP demo. A zone with working nameservers is a hard prerequisite for every feature. | d.de.freitas.alves | **Domain decided 2026-10-29 — `pt-accenture.cftenant.com`.** Still open, and still blocking FR-5 on the target: that the zone is active on Cloudflare, which Cloudflare account holds it, and that it is Enterprise. If that account is not the CoE NFR tenant, account-level configuration — the `0004` managed ruleset — has to be applied there as well. |
+| Which domain hosts the demo, and is it already delegated to Cloudflare? The CapAct MVP ran under `personal-domain-2`, and the current lab under `personal-domain-1`; neither is a suitable home for a client-facing RFP demo. A zone with working nameservers is a hard prerequisite for every feature. | d.de.freitas.alves | **Domain decided 2026-10-29 — `pt-accenture.cftenant.com`.** **Delivered and proxied through Cloudflare, recorded 2026-11-12** (João Grilo), which settles FR-5 on the target. API Shield, an Enterprise add-on, worked on the zone in the `0006` PoC. Still to record: which Cloudflare account holds the zone. If it is not the CoE NFR tenant, account-level configuration — the `0004` managed ruleset — has to be applied there as well. |
 | Which Cloudflare plan is available? This gates the backlog: Bot Management scores and API Shield are Enterprise, Super Bot Fight Mode is Pro/Business. | d.de.freitas.alves | **Resolved 2026-10-21 — Enterprise with the Bot Management add-on**, on the CoE NFR tenant. `cf.bot_management.score`, verified-bot detection and bot analytics are all available, so `0002` and `0006` can be specified against the full feature set. To re-confirm for the account that holds the target domain. |
 | How is FR-7 enforced? Cloud Run's URL is public and cannot be IP-restricted. | d.de.freitas.alves | **Resolved 2026-10-21 — shared-secret header.** Cloudflare injects a secret request header at the edge; the origin refuses anything without it. Zero added cost and no always-on infrastructure. Explicitly demo-grade: a production engagement would put the origin behind a load balancer with Cloud Armor allowlisting Cloudflare's ranges, and the demo narrative should say so rather than imply the header is the recommendation. The check lives in the app, so it carries over to Azure unchanged; the Azure counterpart of the Cloud Armor allowlist is still to be named. |
-| Which Azure services replace the GCP origin on the EBC tenant — compute for the Flask app, the Firestore store, the image registry and build, the audit log sink and bucket — and who grants access to the tenant? | d.de.freitas.alves | **Open.** Blocks the Azure plan. Until it is answered, `plan.md` describes the GCP implementation only. |
+| Which Azure services replace the GCP origin on the EBC tenant — compute for the Flask app, the Firestore store, the image registry and build, the audit log sink and bucket — and who grants access to the tenant? | d.de.freitas.alves | **Answered in practice by the delivered foundation** (João Grilo, recorded 2026-11-12). Still to do: write down what it runs on, and which parts are outside Terraform/OpenTofu. Until then, `plan.md` describes the GCP implementation only. |
 | Is the demo presented live against real infrastructure, or recorded? Changes how much the environment must tolerate being rebuilt on the day. | | |

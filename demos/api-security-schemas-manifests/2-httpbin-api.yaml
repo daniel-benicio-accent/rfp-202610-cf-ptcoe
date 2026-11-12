@@ -1,0 +1,76 @@
+# OpenAPI schema for the demo API (go-httpbin behind api.<zone>).
+# Uploaded by api_shield.tf via templatefile(); api.accenture-arg.cftenant.com is substituted.
+# Every path here must also be an operation in local.api_operations.
+openapi: 3.0.3
+info:
+  title: BD-CF-AppSec demo API
+  version: 1.0.0
+servers:
+  - url: https://app-pt-cybersec-coe-juiceshop.pt-accenture.cftenant.com
+paths:
+  /get:
+    get:
+      operationId: healthCheck
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: OK
+  /anything/orders:
+    post:
+      operationId: createOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [sku, quantity]
+              properties:
+                sku:
+                  type: string
+                  pattern: "^[A-Z]{3}-[0-9]{4}$"
+                quantity:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                customer_email:
+                  type: string
+                  format: email
+                  maxLength: 254
+      responses:
+        "200":
+          description: Order accepted
+  /anything/orders/{order_id}:
+    get:
+      operationId: getOrder
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Order
+  /anything/partner/{resource}:
+    get:
+      operationId: getPartnerResource
+      parameters:
+        - name: resource
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-z0-9-]{1,32}$"
+      responses:
+        "200":
+          description: Partner resource (mTLS required)

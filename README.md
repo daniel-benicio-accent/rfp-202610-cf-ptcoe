@@ -49,7 +49,11 @@ Internet
 Application (Web / API)   — Cloud Run + Firestore on GCP today; Azure EBC tenant as target
 ```
 
-> **Note:** Currently all we have are some codes and a PoC running in a personal lab on GCP and personal domain over CoE's Cloudflare NFR tenant. Check specs Readme for the status on move into Azure EBC tenant and domain pt-accenture.cftenant.com .  
+> **Note:** The platform foundation (`0001`) is delivered on the target domain
+> `pt-accenture.cftenant.com`, and the domain is proxied through Cloudflare. Not
+> all of it is in Terraform/OpenTofu yet. The personal GCP lab remains for
+> building and rehearsal. Status per feature is in
+> [specs/README.md](specs/README.md#prioritized-backlog).
 
 Each of the five edge capabilities is a separate feature with its own
 specification, demonstrated independently: same request, accepted before and
@@ -69,11 +73,11 @@ reused is reimplemented here as tracked code.
 | --- | --- | --- |
 | Cloudflare plan | Enterprise, with the Bot Management add-on | Bot score, verified-bot detection and bot analytics are all available, so `0002` is specified against the full product rather than Super Bot Fight Mode. |
 | Origin lockdown | Shared-secret header injected at the edge, checked by the origin | Keeps idle cost at zero and needs no always-on load balancer. **Demo-grade on purpose** — the production recommendation is Cloud Armor allowlisting Cloudflare's ranges, and the demo narrative must say so. |
-| Target environment | Azure EBC tenant, domain `pt-accenture.cftenant.com` (29 Oct 2026) | The labs still run in a personal GCP/Cloudflare environment, for building and rehearsal. Spec `0001` tracks the move. |
+| Target environment | Azure EBC tenant, domain `pt-accenture.cftenant.com` (29 Oct 2026) | The foundation is delivered there and the domain is proxied; not all of it is in Terraform/OpenTofu yet. The personal GCP/Cloudflare lab remains for building and rehearsal. Spec `0001` tracks it. |
 
-Still open and blocking on the target: **is `pt-accenture.cftenant.com` active
-on Cloudflare, and in which account?** Nothing can move to the target until the
-zone exists. Which Azure services replace the GCP origin is also still open.
+Still open: **which Cloudflare account holds `pt-accenture.cftenant.com`**, and
+what the delivered foundation runs on, including which parts are outside
+Terraform/OpenTofu.
 
 ## Repository map
 
@@ -84,13 +88,14 @@ zone exists. Which Azure services replace the GCP origin is also still open.
 | [specs/_templates/](specs/_templates/) | Templates the spec scaffolder copies from. |
 | [src/terraform/_templates/](src/terraform/_templates/) | The only Terraform kept in the repo. Everything else is rendered per demo. |
 | `demos/<name>/` | One self-contained demo, rendered by the wizard. Not present until you create one. |
-| [scripts/](scripts/) | Repository tooling: spec scaffolder, demo wizards (Cloud Run origin; GKE with Istio and nginx), teardown. |
+| [scripts/](scripts/) | Repository tooling: spec scaffolder, demo wizard, teardown, and the API security test scripts. |
 | [docs/spec-workflow.md](docs/spec-workflow.md) | The spec → plan → tasks → code lifecycle and status values. |
 | [docs/conventions.md](docs/conventions.md) | Working agreements: language, naming, documentation, AI tooling, secrets. |
 | [docs/prerequisites.md](docs/prerequisites.md) | Workstation setup: WSL, OpenTofu, `gcloud`, and the environment variables. |
 | [docs/created-objects.md](docs/created-objects.md) | Checklist of every object a demo creates, for walking the consoles by hand. |
 | [docs/wafdemo-owasp-juice-shop.md](docs/wafdemo-owasp-juice-shop.md) | Runbook for the hand-written WAF demo: Juice Shop on a GCE VM behind Cloudflare. |
 | [docs/waf-testing-plan.md](docs/waf-testing-plan.md) | WAF test cases mapped to the OWASP Top 10:2025, with deprioritized items struck through. Backs spec [0004](specs/0004-waf/spec.md). |
+| [docs/api-security-testing-plan.md](docs/api-security-testing-plan.md) | How the API Discovery and schema validation measurements were taken and how to repeat them, with run records and Ray ID tracing. Backs spec [0006](specs/0006-api-security/spec.md). |
 | [docs/inherited-from-capact.md](docs/inherited-from-capact.md) | What the CapAct MVP contributed to this work, and why. History, not a dependency. |
 
 This file and [specs/README.md](specs/README.md) are the only two READMEs in the
@@ -141,8 +146,8 @@ neither is ever written to a tracked file:
 | `CLOUDFLARE_API_TOKEN` | Scoped to edit the demo zone |
 | `TF_VAR_edge_secret` | The shared secret the edge injects and the origin checks; generated per environment |
 
-A Cloudflare zone is also required and is the one remaining blocking question on
-`0001`.
+A Cloudflare zone is also required. The target domain is delivered and proxied
+(see `0001`).
 
 ### Start a new piece of work
 
