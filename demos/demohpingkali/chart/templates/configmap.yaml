@@ -1,0 +1,37 @@
+# Replaces the image's default.conf. Same page, two additions: a header naming
+# the pod that answered, and a health endpoint for the probes.
+#
+# No IPv6 listen line, unlike the stock file: GKE pods here are IPv4 only, and
+# hping refuses to start on a listen it cannot bind.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "hping-site.labels" . | nindent 4 }}
+data:
+  default.conf: |
+    server {
+        listen       80;
+        server_name  _;
+
+        # The pod that answered. With one pod per node, that also names the
+        # node, which is how the spread is shown during the demo.
+        add_header X-Served-By $hostname always;
+
+        location / {
+            root   /usr/share/nginx/html;
+            index  index.html index.htm;
+        }
+
+        location = /healthz {
+            access_log   off;
+            default_type text/plain;
+            return 200   "ok\n";
+        }
+
+        error_page   500 502 503 504  /50x.html;
+        location = /50x.html {
+            root   /usr/share/nginx/html;
+        }
+    }

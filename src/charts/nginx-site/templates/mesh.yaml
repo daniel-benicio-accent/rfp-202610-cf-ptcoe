@@ -1,0 +1,52 @@
+# Istio objects for the page. The CRDs come from the istio-base release, which
+# Terraform installs before this chart.
+
+# Every workload in this namespace accepts mutual TLS only. The gateway's
+# proxy presents a mesh certificate automatically, so the page still works;
+# anything without a sidecar is refused.
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: default
+  labels:
+    {{- include "nginx-site.labels" . | nindent 4 }}
+spec:
+  mtls:
+    mode: STRICT
+---
+# Opens port 80 on the ingress gateway pods. A TLS or mTLS server for 443 goes
+# here too, when it is needed.
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "nginx-site.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- toYaml .Values.gateway.selector | nindent 4 }}
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        {{- toYaml .Values.gateway.hosts | nindent 8 }}
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "nginx-site.labels" . | nindent 4 }}
+spec:
+  hosts:
+    {{- toYaml .Values.gateway.hosts | nindent 4 }}
+  gateways:
+    - {{ .Release.Name }}
+  http:
+    - route:
+        - destination:
+            host: {{ .Release.Name }}.{{ .Release.Namespace }}.svc.cluster.local
+            port:
+              number: 80

@@ -1,0 +1,24 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "nginx-site.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Release.Name }}
+  minReplicas: {{ .Values.replicas.min }}
+  maxReplicas: {{ .Values.replicas.max }}
+  metrics:
+    # ContainerResource rather than Resource: measures the nginx container
+    # alone. The pod-wide figure would average in the Istio sidecar's request
+    # and scale late.
+    - type: ContainerResource
+      containerResource:
+        name: cpu
+        container: nginx
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.replicas.cpuTargetPercent }}
