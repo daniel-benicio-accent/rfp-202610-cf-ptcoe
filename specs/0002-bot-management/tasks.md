@@ -2,25 +2,25 @@
 
 | Field   | Value |
 | ------- | ----- |
-| Updated | 2026-10-21 |
+| Updated | 2026-11-12 |
 
-Blocked on `0001` delivering the proxied hostname and the origin lockdown. The
-plan tier is settled (Enterprise with Bot Management), so the module shape is
-known and these tasks are concrete.
+`0001` is delivered, with the domain proxied through Cloudflare. The plan tier
+is settled (Enterprise with Bot Management), so the module shape is known and
+these tasks are concrete.
 
 | # | Task | Covers | Status |
 | - | ---- | ------ | ------ |
 | 1 | ~~Resolve the plan tier and pick the module shape~~ | FR-1, FR-6 | done — Enterprise, score-based rule, 2026-10-21 |
 | 2 | Choose the bot score threshold and record the reasoning | FR-9 | todo |
-| 3 | Capture the baseline: feature off, scripted client reaches origin | FR-2 | blocked on 0001 |
-| 4 | Write the `bot-management` module behind `enable_bot_management`, with threshold and action as variables | FR-1, FR-6, FR-9 | blocked on 0001 |
-| 5 | Verify the scripted client is refused and the origin counter stays flat | FR-3, FR-8 | blocked on 0001 |
-| 6 | Verify a browser session is unaffected | FR-4 | blocked on 0001 |
-| 7 | Verify a spoofed `Googlebot` user agent is still mitigated by the same rule | FR-5 | blocked on 0001 |
-| 8 | Drive the volume scenario from the load generator and capture both counters | FR-8 | blocked on 0001 |
-| 9 | Capture the Cloudflare event log and the bot score distribution for the window | FR-7, FR-10 | blocked on 0001 |
-| 10 | Show the match set changing when the threshold changes | FR-9 | blocked on 0001 |
-| 11 | Write the presenter runbook for the sequence | — | blocked on 0001 |
+| 3 | Capture the baseline: feature off, scripted client reaches origin | FR-2 | todo |
+| 4 | Write the `bot-management` module behind `enable_bot_management`, with threshold and action as variables | FR-1, FR-6, FR-9 | todo |
+| 5 | Verify the scripted client is refused and the origin counter stays flat | FR-3, FR-8 | todo |
+| 6 | Verify a browser session is unaffected | FR-4 | todo |
+| 7 | Verify a spoofed `Googlebot` user agent is still mitigated by the same rule | FR-5 | todo |
+| 8 | Drive the volume scenario from the load generator and capture both counters | FR-8 | todo |
+| 9 | Capture the Cloudflare event log and the bot score distribution for the window | FR-7, FR-10 | todo |
+| 10 | Show the match set changing when the threshold changes | FR-9 | todo |
+| 11 | Write the presenter runbook for the sequence | — | todo |
 
 ## Definition of done
 

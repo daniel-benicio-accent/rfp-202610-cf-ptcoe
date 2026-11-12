@@ -27,9 +27,10 @@ For an RFP audience, bot management is the capability that is hardest to argue
 about with a slide and easiest to show with a terminal: the same request,
 accepted before and refused after, with a reason attached.
 
-Depends on `0001`. Nothing here can be demonstrated until there is a proxied
-hostname and the origin refuses direct traffic — otherwise the "blocked" request
-can simply be retried against the origin URL.
+Builds on `0001`, which is delivered: the domain is proxied through
+Cloudflare. A block only proves something while the origin refuses direct
+traffic, so check that before each demo. Otherwise the "blocked" request can
+simply be retried against the origin URL.
 
 ## Mandatory scope (29 October 2026 update)
 

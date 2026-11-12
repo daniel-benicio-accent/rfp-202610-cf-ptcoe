@@ -5,8 +5,8 @@
 > [demos/wafdemo-owasp-juice-shop/](../../demos/wafdemo-owasp-juice-shop/) with
 > its [runbook](../../docs/wafdemo-owasp-juice-shop.md); the plan below is about
 > promoting that into a specified, template-rendered feature, and is filled in
-> once the spec is approved. Blocked on `0001` for the origin lockdown that
-> stops the edge being bypassed.
+> once the spec is approved. Builds on `0001`, which is delivered, for the
+> origin lockdown that stops the edge being bypassed.
 
 | Field   | Value |
 | ------- | ----- |

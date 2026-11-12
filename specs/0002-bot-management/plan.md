@@ -1,9 +1,8 @@
 # 0002 — Bot management — Plan
 
-> Draft. `spec.md` is not yet `Approved`, and this cannot be built until `0001`
-> delivers a proxied hostname and the origin lockdown. The plan-tier question
-> that previously blocked the design is resolved: Enterprise with the Bot
-> Management add-on.
+> Draft. `spec.md` is not yet `Approved`. `0001` is delivered, with the domain
+> proxied through Cloudflare. The plan-tier question that previously held up
+> the design is resolved: Enterprise with the Bot Management add-on.
 
 | Field   | Value |
 | ------- | ----- |
@@ -71,6 +70,5 @@ is the FR-9 evidence.
 > feature yet. Rehearse it end to end against the acceptance criteria in
 > `spec.md` before showing it to anyone.
 
-Blocked on `0001`. Needs the proxied hostname (FR-5) and the origin lockdown
-(FR-7) before any of this can be shown honestly — without them, a "blocked"
-request can simply be retried against the Cloud Run URL.
+Before the demo, check that the origin refuses direct traffic (`0001` FR-7).
+Without that, a "blocked" request can simply be retried against the origin URL.
